@@ -29,8 +29,8 @@ def context_target_split(x, y, num_context, num_extra_target):
                                  replace=False)
     x_context = x[:, locations[:num_context], :]
     y_context = y[:, locations[:num_context], :]
-    x_target = x[:, locations[num_context:], :]
-    y_target = y[:, locations[num_context:], :]
+    x_target = x[:, locations[:num_context+num_extra_target], :]
+    y_target = y[:, locations[:num_context+num_extra_target], :]
     return x_context, y_context, x_target, y_target
 
 

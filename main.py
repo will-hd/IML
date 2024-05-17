@@ -4,100 +4,114 @@ from torch.distributions import uniform
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from torch.distributions.kl import kl_divergence
 
 from np import NeuralProcess
 from datasets import GPData
 
 
-
-def log_likelihood_Gaussian(mu_Y_pred, std_Y_pred, Y_ct):
+def loss_func(p_y_pred, y_target, q_z_target, q_z_context): 
+    """
+    p_y_pred 
+        Shape (batch_size, num_target_points, y_size)
+    q_z_target
+        Shape (batch_size, z_size)
     """
 
-    Parameters
-    ----------
-    mu_Y_pred : torch.Tensor
-        Shape (batch_size, num_context_points+num_target_points, y_dim)
-    std_Y_pred : torch.Tensor
-        Shape (batch_size, num_context_points+num_target_points, y_dim)
-    Y_ct : torch.Tensor
-        Shape (batch_size, num_context_points+num_target_points, y_dim)
-
-    """
-    ll = - torch.log(std_Y_pred.pow(2)) - 0.5 * ( (mu_Y_pred - Y_ct) / std_Y_pred).pow(2)
-
-    return ll.mean(dim=0).sum()
+    log_lik = p_y_pred.log_prob(y_target).sum(-1)
+    _, num_target_points = log_lik.shape
     
+    kl = kl_divergence(q_z_target, q_z_context).sum(-1)
+    kl = kl.unsqueeze(-1).repeat(1, num_target_points)
+
+
+    return -torch.mean(log_lik - kl / num_target_points)
+
+
+
+
+def plot_functions(target_x, target_y, context_x, context_y, pred_y, std):
+    """Plots the predicted mean and variance and the context points.
+
+      Args: 
+        target_x: An array of shape [B,num_targets,1] that contains the
+            x values of the target points.
+        target_y: An array of shape [B,num_targets,1] that contains the
+            y values of the target points.
+        context_x: An array of shape [B,num_contexts,1] that contains 
+            the x values of the context points.
+        context_y: An array of shape [B,num_contexts,1] that contains 
+            the y values of the context points.
+        pred_y: An array of shape [B,num_targets,1] that contains the
+            predicted means of the y values at the target points in target_x.
+        std: An array of shape [B,num_targets,1] that contains the
+            predicted std dev of the y values at the target points in target_x.
+      """
+    # Plot everything
+    plt.plot(target_x[0], pred_y[0], 'b', linewidth=2)
+    #plt.plot(target_x[0], target_y[0], 'k:', linewidth=2)
+    plt.plot(context_x[0], context_y[0], 'ko', markersize=10)
+    plt.fill_between(
+        target_x[0, :, 0],
+        pred_y[0, :, 0] - std[0, :, 0],
+        pred_y[0, :, 0] + std[0, :, 0],
+        alpha=0.2,
+        facecolor='#65c9f7',
+        interpolate=True)
+
+    # Make the plot pretty
+    plt.yticks([-2, 0, 2], fontsize=16)
+    plt.xticks([-2, 0, 2], fontsize=16)
+    plt.ylim([-2, 2])
+    plt.grid('off')
+    ax = plt.gca()
+    plt.show()
+     
+
 
 
 if __name__ == "__main__":
 
     x_size = 1
     y_size = 1
-    r_size = 50  # Dimension of representation of context points
-    z_size = 50  # Dimension of sampled latent variable
-    h_size = 50  # Dimension of hidden layers in encoder and decoder 
+    z_size = 64
+    r_size = 64
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    model = NeuralProcess(x_size, y_size, r_size, z_size, h_size, 2, 2).to(device)
+    model = NeuralProcess(x_size, y_size, r_size, z_size).to(device)
     print(model)
     model.training = True
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
-    optimiser = torch.optim.Adam(model.parameters(), lr=0.005)
+    optimiser = torch.optim.Adam(model.parameters(), lr=5e-5)
 
-    GP_dataset_train = GPData()
+    dataset = GPData()
 
-    
-    num_epochs = 10
-    for epoch in range(num_epochs):
+    N_iterations = 30000 
+
+    for iter in range(N_iterations):
         total_loss = 0 
-        for context_batch, target_batch in GP_dataset_train.data:
+        ((x_context, y_context), (x_target, y_target)) = dataset.generate_batch(as_tensor=True, device=device)
 
-#            print(context_batch[0][0].shape)
-#            print(target_batch[0][0].shape)
-#            x = np.concatenate((context_batch[0][0], target_batch[0][0]), axis=0)
-#            y = np.concatenate((context_batch[1][0], target_batch[1][0]), axis=0)
-#
-#            print(x.shape)
-#            sort_idx = np.argsort(x.flatten())
-#
-#            plt.plot(x[sort_idx].flatten(), y[sort_idx].flatten())
-#            plt.show()
-#            
-#            break
-#        break
-            
+
+        optimiser.zero_grad()
+
+        p_y_pred, q_z_target, q_z_context = model(x_context, y_context, x_target, y_target)
+
+
+        loss = loss_func(p_y_pred, y_target, q_z_target, q_z_context)
+
+        loss.backward()
+        optimiser.step()
+
+
+        if iter % 1000 == 0:
+            print(f"Loss {loss.item()}")
+            plot_functions(x_target.detach().cpu(), y_target.detach().cpu(), 
+                                 x_context.detach().cpu(), y_context.detach().cpu(),
+                                 p_y_pred.mean.detach().cpu(), p_y_pred.stddev.detach().cpu())
+
         
-            
-            X_context, Y_context = torch.Tensor(context_batch[0]).to(device), torch.Tensor(context_batch[1]).to(device)
-            X_target, Y_target = torch.Tensor(target_batch[0]).to(device), torch.Tensor(target_batch[1]).to(device)
-
-            optimiser.zero_grad()
-
-
-            p_y_pred, q_ct, q_context = model(X_context, Y_context, X_target, Y_target)
-
-            #kl = model.KL_div_Gaussian(mu_Z_ct, std_Z_ct, mu_Z_context, std_Z_context)
-            kl = model.KL(q_ct, q_context)
-            ll = p_y_pred.log_prob(torch.cat((Y_context, Y_target), dim=1)).mean(dim=0).sum()
-            
-            loss = kl - ll
-            total_loss += loss.item()
-
-            loss.backward()
-            optimiser.step()
-        
-        print(f"Avg loss: {total_loss / len(GP_dataset_train)}")
-#            print(X_context.shape)
-#            print(Y_context.shape)
-#
-#            print(X_target.shape)
-#            print(Y_target.shape)
-#
-        
-
-            
-
 
 
 
