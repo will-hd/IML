@@ -3,6 +3,29 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 
+from typing import Callable
+
+def make_MLP(
+             in_size: int,
+             out_size: int,
+             hidden_size: int,
+             num_h_layers: int, # number of hidden layers
+             bias: bool,
+             hidden_acc: Callable,
+             output_acc: Callable
+             ) -> list[nn.Module]:
+    h = [hidden_size] * (num_h_layers)
+
+    layers = []
+    for i, (n, m) in enumerate(zip([in_size] + h, h + [out_size])):
+        layers.append(nn.Linear(n, m, bias=bias))
+        if i != num_h_layers:
+            layers.append(hidden_acc)
+        else:
+            layers.append(output_acc)
+
+    return layers
+
 class LatentEncoder(nn.Module):
     """
     Latent encoder
@@ -10,32 +33,33 @@ class LatentEncoder(nn.Module):
     def __init__(self, 
                  x_size: int = 1, 
                  y_size: int = 1, 
-                 h1_size: int = 128, 
-                 h2_size: int = 96, 
-                 z_size: int = 64
+                 h_size: int = 128,
+                 z_size: int = 64,
+                 N_xy_to_si_layers: int = 2,
+                 N_sc_to_qz_layers: int = 1
                  ):
 
         super().__init__()
 
-        XY_to_h1_layers = [nn.Linear(x_size + y_size, h1_size), #1
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #2
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #3
-                  nn.Identity()]
-        self.XY_to_h1 = nn.Sequential(*XY_to_h1_layers)
+        xy_to_si_layers = make_MLP(in_size=x_size+y_size,
+                                   out_size=h_size,
+                                   hidden_size=h_size,
+                                   num_h_layers=N_xy_to_si_layers,
+                                   bias=True,
+                                   hidden_acc=nn.ReLU(),
+                                   output_acc=nn.Identity())
 
-        h1_to_h2_layers = [nn.Linear(h1_size, h2_size),
-                           nn.ReLU()]
-        self.h1_to_h2 = nn.Sequential(*h1_to_h2_layers)
+        sc_to_qz_layers = make_MLP(in_size=h_size,
+                                   out_size=2*z_size,
+                                   hidden_size=h_size,
+                                   num_h_layers=N_sc_to_qz_layers,
+                                   bias=True,
+                                   hidden_acc=nn.ReLU(),
+                                   output_acc=nn.Identity())
 
-        h2_to_loc_layers = [nn.Linear(h2_size, z_size),
-                            nn.Identity()]
-        self.h2_to_zloc = nn.Sequential(*h2_to_loc_layers)
 
-        h2_to_scale_layers = [nn.Linear(h2_size, z_size),
-                              nn.Identity()]
-        self.h2_to_zscale = nn.Sequential(*h2_to_scale_layers)
+        self.xy_to_si = nn.Sequential(*xy_to_si_layers)
+        self.sc_to_qz = nn.Sequential(*sc_to_qz_layers)
     
         
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.distributions.normal.Normal:
@@ -53,15 +77,15 @@ class LatentEncoder(nn.Module):
         """
 
         xy = torch.cat((x, y), dim=2)
-        h1 = self.XY_to_h1(xy).mean(dim=1) # Shape (batch_size, h1_size)
-        h2 = self.h1_to_h2(h1)
-
-        zloc = self.h2_to_zloc(h2) # Shape (batch_size, z_size)
-        zscale = 0.1 + 0.9*F.sigmoid(self.h2_to_zscale(h2)) # Shape (batch_size, z_size)
-
-        q_Z = Normal(zloc, zscale) # Shape (batch_size, z_size)
+        sc = self.xy_to_si(xy).mean(dim=1) # Shape (batch_size, h_size)
         
-        return q_Z
+        qz_params = self.sc_to_qz(sc) # Shape (batch_size, 2*z_size)
+
+        zloc, pre_zscale = torch.chunk(qz_params, 2, dim=1)
+        zscale = 0.1 + 0.9*F.sigmoid(pre_zscale) # Shape (batch_size, z_size)
+
+        return Normal(zloc, zscale) # Shape (batch_size, z_size)
+
 
 
 class DeterminisitcEncoder(nn.Module):
@@ -71,33 +95,21 @@ class DeterminisitcEncoder(nn.Module):
     def __init__(self, 
                  x_size: int = 1, 
                  y_size: int = 1, 
-                 h1_size: int = 128, 
-                 h2_size: int = 64, 
-                 r_size: int = 64
+                 h_size: int = 128,
+                 r_size: int = 64,
+                 N_h_layers: int = 6
                  ):
         
         super().__init__()
-        XY_to_h1_layers = [nn.Linear(x_size + y_size, h1_size), #1
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #2
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #3
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #4
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #5
-                  nn.ReLU(),
-                  nn.Linear(h1_size, h1_size), #6
-                  nn.ReLU()]
+        xy_to_ri_layers = make_MLP(in_size=x_size+y_size,
+                                   out_size=r_size,
+                                   hidden_size=h_size,
+                                   num_h_layers=N_h_layers,
+                                   bias=True,
+                                   hidden_acc=nn.ReLU(),
+                                   output_acc=nn.Identity())
 
-        h1_to_h2_layers = [nn.Linear(h1_size, h2_size),
-                    nn.ReLU(),
-                    nn.Linear(h2_size, r_size),
-                    nn.Identity()]
-
-        layers = [*XY_to_h1_layers, *h1_to_h2_layers]
-        
-        self.deterministic_encoder = nn.Sequential(*layers) 
+        self.deterministic_encoder = nn.Sequential(*xy_to_ri_layers) 
         
     def forward(self,
                 x: torch.Tensor,
@@ -117,9 +129,9 @@ class DeterminisitcEncoder(nn.Module):
         """
         
         xy = torch.cat((x, y), dim=2)
-        r_i = self.deterministic_encoder(xy) # Shape (batch_size, num_points, r_size)
-        r = r_i.mean(dim=1) # Shape (batch_size, r_size)
-        return r
+        ri = self.deterministic_encoder(xy) # Shape (batch_size, num_points, r_size)
+        rc = ri.mean(dim=1) # Shape (batch_size, r_size)
+        return rc
 
 class Decoder(nn.Module):
     """
@@ -130,38 +142,48 @@ class Decoder(nn.Module):
                  y_size: int = 1, 
                  h_size: int = 128, 
                  r_size: int = 64,
-                 z_size: int = 64
+                 z_size: int = 64,
+                 N_h_layers: int = 3,
+                 use_r: bool = False
                  ):
 
         super().__init__()
+        
+        if use_r:
+            xzr_to_py_layers = make_MLP(in_size=x_size+r_size+z_size,
+                                       out_size=2*y_size,
+                                       hidden_size=h_size,
+                                       num_h_layers=N_h_layers,
+                                       bias=True,
+                                       hidden_acc=nn.ReLU(),
+                                       output_acc=nn.Identity())
+            self.xzr_to_py = nn.Sequential(*xzr_to_py_layers)
 
-        xrz_to_h_layers = [nn.Linear(x_size+z_size, h_size),
-                  nn.ReLU(),
-                  nn.Linear(h_size, h_size),
-                  nn.ReLU()]
-        h_to_yloc_layers = [nn.Linear(h_size, y_size),
-                     nn.Identity()]
-        h_to_yscale_layers = [nn.Linear(h_size, y_size),
-                     nn.Identity()]
+        else:
+            xz_to_py_layers = make_MLP(in_size=x_size+z_size,
+                                       out_size=2*y_size,
+                                       hidden_size=h_size,
+                                       num_h_layers=N_h_layers,
+                                       bias=True,
+                                       hidden_acc=nn.ReLU(),
+                                       output_acc=nn.Identity())
+            self.xz_to_py = nn.Sequential(*xz_to_py_layers)
 
-        self.xrz_to_h = nn.Sequential(*xrz_to_h_layers)
-        self.h_to_yloc = nn.Sequential(*h_to_yloc_layers)
-        self.h_to_yscale = nn.Sequential(*h_to_yscale_layers)
 
     def forward(self,
                 x: torch.Tensor,
-                r: torch.Tensor,
-                z: torch.Tensor
+                z: torch.Tensor,
+                r: None | torch.Tensor = None
                 ) -> torch.distributions.normal.Normal:
         """
         Parameters
         ----------
         x : torch.Tensor
             Shape (batch_size, num_target_points, x_size)
-        r : torch.Tensor
-            Shape (batch_size, r_size)
         z : torch.Tensor
             Shape (batch_size, z_size)
+        r : torch.Tensor
+            Shape (batch_size, r_size)
         Returns
         -------
         p_y_pred : torch.distributions.normal.Normal
@@ -169,11 +191,18 @@ class Decoder(nn.Module):
         """
         _, num_target_points, _ = x.size()
         z = z.unsqueeze(1).repeat(1, num_target_points, 1)
-        # r = r.unsqueeze(1).repeat(1, num_target_points, 1)
-        xrz = torch.cat((x, z), dim=2)
 
-        h = self.xrz_to_h(xrz)
+        if r is not None:
+            assert self.use_r
+            r = r.unsqueeze(1).repeat(1, num_target_points, 1)
+            xzr = torch.cat((x, r, z), dim=2) # Shape (batch_size, num_target_points, x_+r_+z_size)
+            py_params = self.xzr_to_py(xzr)
 
-        yloc = self.h_to_yloc(h)
-        yscale = 0.1 + 0.9 * F.softplus(self.h_to_yloc(h))
+        else:
+            xz = torch.cat((x, z), dim=2) # Shape (batch_size, num_target_points, x_+z_size)
+            py_params = self.xz_to_py(xz)
+
+        yloc, pre_yscale = torch.chunk(py_params, 2, dim=2)
+        yscale = 0.1 + 0.9 * F.softplus(pre_yscale)
+
         return Normal(yloc, yscale)

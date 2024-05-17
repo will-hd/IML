@@ -74,12 +74,26 @@ if __name__ == "__main__":
 
     x_size = 1
     y_size = 1
+    h_size = 128
     z_size = 64
     r_size = 64
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    model = NeuralProcess(x_size, y_size, r_size, z_size).to(device)
+    model = NeuralProcess(
+                x_size = x_size,
+                y_size = y_size,
+                r_size = r_size,
+                z_size = z_size,
+                h_size_dec = h_size,
+                h_size_enc_lat = h_size,
+                h_size_enc_det = h_size,
+                N_h_layers_dec = 3,
+                N_xy_to_si_layers = 2,
+                N_sc_to_qz_layers = 1,
+                N_h_layers_enc_det = 6,
+                use_r = False
+                ).to(device)
     print(model)
     model.training = True
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")

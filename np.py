@@ -11,47 +11,61 @@ from models import LatentEncoder, DeterminisitcEncoder, Decoder
 class NeuralProcess(nn.Module):
 
     def __init__(self,
-                 x_size: int = 1,
+                 x_size: int = 2,
                  y_size: int = 1,
                  r_size: int = 64,
                  z_size: int = 64,
                  h_size_dec: int = 128,
-                 h1_size_lat: int = 128,
-                 h2_size_lat: int = 96,
-                 h1_size_det: int = 128,
-                 h2_size_det: int = 64
+                 h_size_enc_lat: int = 128,
+                 h_size_enc_det: int = 128,
+                 N_h_layers_dec: int = 3,
+                 N_xy_to_si_layers: int = 2,
+                 N_sc_to_qz_layers: int = 1,
+                 N_h_layers_enc_det: int = 6,
+                 use_r: bool | None = None
                  ) -> None:
         super().__init__() 
+        
+        self.use_r = use_r
+        assert use_r is not None, "use_r must be specified"
 
-        self.latent_encoder = LatentEncoder(x_size, y_size, h1_size_lat, h2_size_lat, z_size)
-        self.deterministic_encoder = DeterminisitcEncoder(x_size, y_size, h1_size_det, h2_size_det, r_size)
-        self.decoder = Decoder(x_size, y_size, h_size_dec, r_size, z_size)
+        self.latent_encoder = LatentEncoder(x_size, y_size, h_size_enc_lat,
+                                            z_size, N_xy_to_si_layers, N_sc_to_qz_layers)
+        if use_r:
+            self.deterministic_encoder = DeterminisitcEncoder(x_size, y_size, 
+                                                              h_size_enc_det, r_size,
+                                                              N_h_layers_enc_det)
+        self.decoder = Decoder(x_size, y_size, h_size_dec, r_size,
+                               z_size, N_h_layers_dec, use_r)
 
     def forward(self,
-                x_cntxt: torch.Tensor,
-                y_cntxt: torch.Tensor,
-                x_trgt: torch.Tensor,
-                y_trgt: None | torch.Tensor = None
+                x_context: torch.Tensor,
+                y_context: torch.Tensor,
+                x_target: torch.Tensor,
+                y_target: None | torch.Tensor = None,
                 ):
 
+        if self.use_r:
+            r_context = self.deterministic_encoder(x_context, y_context)
+        else:
+            r_context = None
+
         if self.training:
-            # assumes that x_trgt includes the x_context points
+            # assumes that x_target includes the x_context points
 
-            q_z_cntxt = self.latent_encoder(x_cntxt, y_cntxt)
-            q_z_trgt = self.latent_encoder(x_trgt, y_trgt)
-            r_cntxt = self.deterministic_encoder(x_cntxt, y_cntxt)
+            q_z_context = self.latent_encoder(x_context, y_context)
+            q_z_target = self.latent_encoder(x_target, y_target)
             
-            z_trgt_sample = q_z_trgt.rsample()
-            p_y_pred = self.decoder(x_trgt, r_cntxt, z_trgt_sample)
+            z_target_sample = q_z_target.rsample()
+            p_y_pred = self.decoder(x=x_target, z=z_target_sample, r=r_context)
 
-            return p_y_pred, q_z_trgt, q_z_cntxt
+            return p_y_pred, q_z_target, q_z_context
         else:
 
-            q_z_cntxt = self.latent_encoder(x_cntxt, y_cntxt)
-            z_cntxt_sample = q_z_cntxt.rsample()
-            r_cntxt = self.deterministic_encoder(x_cntxt, y_cntxt)
+            q_z_context = self.latent_encoder(x_context, y_context)
+            z_context_sample = q_z_context.rsample()
 
-            p_y_pred = self.decoder(x_trgt, r_cntxt, z_cntxt_sample) 
+            p_y_pred = self.decoder(x=x_target, z=z_context_sample, r=r_context) 
 
             return p_y_pred
 
