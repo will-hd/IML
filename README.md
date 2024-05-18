@@ -1,2 +1,0 @@
-# IMP
-Informed Meta Learning
