@@ -20,8 +20,10 @@ class GPData():
     
     def generate_batch(self, as_tensor: bool = False, device = None):
 
-        num_context = np.random.randint(low=3, high=self.max_num_context)
-        num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
+        # num_context = np.random.randint(low=3, high=self.max_num_context)
+        num_context = 10
+        num_target = 20
+        # num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
     
         batch_x = [] 
         batch_y = []
@@ -29,7 +31,7 @@ class GPData():
             sigma = np.random.uniform(*self.sigma_range) 
             ls = np.random.uniform(*self.ls_range) 
 
-            x = np.random.uniform(-2, 2, num_target).reshape(-1,1)
+            x = np.sort(np.random.uniform(-2, 2, num_target)).reshape(-1,1)
             y = self.sample_GP(x, sigma, ls)
             
             batch_x.append(x)
@@ -42,8 +44,13 @@ class GPData():
 
 #                batch_context.append(context_data)
 #                batch_target.append(target_data)
-        context_x = batch_x[:, :num_context, :]
-        context_y = batch_y[:, :num_context, :]
+        # make indices of length num_context
+        context_idx = np.random.choice(num_target, num_context, replace=False)
+
+        context_x = batch_x[:, context_idx, :]
+        context_y = batch_y[:, context_idx, :]
+        # context_x = batch_x[:, :num_context, :]
+        # context_y = batch_y[:, :num_context, :]
 
         target_x = batch_x[:, :num_target, :]
         target_y = batch_y[:, :num_target, :]
@@ -76,6 +83,65 @@ class GPData():
         f = np.random.multivariate_normal(mu.flatten(), K, 1)
 
         return f.T
+
+
+class GP_sine_data():
+    def __init__(self, sigma_range=(0.1, 1), ls_range=(0.1, 0.6), batch_size=16, max_num_context=97):
+
+            self.sigma_range = sigma_range
+            self.ls_range = ls_range
+            self.batch_size = batch_size
+            self.max_num_context = max_num_context
+    
+    def generate_batch(self, as_tensor: bool = False, device = None):
+
+        # num_context = np.random.randint(low=3, high=self.max_num_context)
+        num_context = 4
+        num_target = 4
+        # num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
+    
+        batch_x = [] 
+        batch_y = []
+        for _ in range(self.batch_size):
+            sigma = np.random.uniform(*self.sigma_range) 
+            ls = np.random.uniform(*self.ls_range) 
+
+            x = np.sort(np.random.uniform(-2, 2, num_target)).reshape(-1,1)
+            y = self.sample_GP(x, sigma, ls)
+            
+            batch_x.append(x)
+            batch_y.append(y)
+
+        batch_x = np.array(batch_x)
+        batch_y = np.array(batch_y)
+#                context_data = (x[:num_context], y[:num_context])
+#                target_data = (x[num_context:], y[num_context:])
+
+#                batch_context.append(context_data)
+#                batch_target.append(target_data)
+        # make indices of length num_context
+        context_idx = np.random.choice(num_target, num_context, replace=False)
+
+        context_x = batch_x[:, context_idx, :]
+        context_y = batch_y[:, context_idx, :]
+        # context_x = batch_x[:, :num_context, :]
+        # context_y = batch_y[:, :num_context, :]
+
+        target_x = batch_x[:, :num_target, :]
+        target_y = batch_y[:, :num_target, :]
+        
+
+        if not as_tensor:
+            return ((context_x, context_y), (target_x, target_y))
+
+        else:
+            assert device, "as_tensor = True so should specify device"
+            context_x = torch.from_numpy(context_x).to(torch.float32).to(device)
+            context_y = torch.from_numpy(context_y).to(torch.float32).to(device)
+            target_x = torch.from_numpy(target_x).to(torch.float32).to(device)
+            target_y = torch.from_numpy(target_y).to(torch.float32).to(device)
+
+            return ((context_x, context_y), (target_x, target_y))
 
 class SineData(Dataset):
     """
