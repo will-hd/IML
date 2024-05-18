@@ -94,6 +94,7 @@ if __name__ == "__main__":
                 N_h_layers_enc_det = 6,
                 use_r = False
                 ).to(device)
+
     print(model)
     model.training = True
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
