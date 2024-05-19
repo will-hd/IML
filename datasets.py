@@ -15,19 +15,16 @@ class GPData():
 
         self.sigma_range = sigma_range
         self.ls_range = ls_range
-        self.batch_size = batch_size
         self.max_num_context = max_num_context
     
-    def generate_batch(self, as_tensor: bool = False, device = None):
+    def generate_batch(self, batch_size=16, as_tensor: bool = False, device = None):
 
-        # num_context = np.random.randint(low=3, high=self.max_num_context)
-        num_context = 10
-        num_target = 20
-        # num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
+        num_context = np.random.randint(low=3, high=self.max_num_context)
+        num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
     
         batch_x = [] 
         batch_y = []
-        for _ in range(self.batch_size):
+        for _ in range(batch_size):
             sigma = np.random.uniform(*self.sigma_range) 
             ls = np.random.uniform(*self.ls_range) 
 

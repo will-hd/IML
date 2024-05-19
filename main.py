@@ -8,7 +8,7 @@ from torch.distributions.kl import kl_divergence
 
 from np import NeuralProcess
 from datasets import GPData
-
+from plot import plot_predictive
 
 def loss_func(p_y_pred, y_target, q_z_target, q_z_context): 
     """
@@ -26,47 +26,6 @@ def loss_func(p_y_pred, y_target, q_z_target, q_z_context):
 
 
     return -torch.mean(log_lik - kl / num_target_points)
-
-
-
-
-def plot_functions(target_x, target_y, context_x, context_y, pred_y, std):
-    """Plots the predicted mean and variance and the context points.
-
-      Args: 
-        target_x: An array of shape [B,num_targets,1] that contains the
-            x values of the target points.
-        target_y: An array of shape [B,num_targets,1] that contains the
-            y values of the target points.
-        context_x: An array of shape [B,num_contexts,1] that contains 
-            the x values of the context points.
-        context_y: An array of shape [B,num_contexts,1] that contains 
-            the y values of the context points.
-        pred_y: An array of shape [B,num_targets,1] that contains the
-            predicted means of the y values at the target points in target_x.
-        std: An array of shape [B,num_targets,1] that contains the
-            predicted std dev of the y values at the target points in target_x.
-      """
-    # Plot everything
-    plt.plot(target_x[0], pred_y[0], 'b', linewidth=2)
-    #plt.plot(target_x[0], target_y[0], 'k:', linewidth=2)
-    plt.plot(context_x[0], context_y[0], 'ko', markersize=10)
-    plt.fill_between(
-        target_x[0, :, 0],
-        pred_y[0, :, 0] - std[0, :, 0],
-        pred_y[0, :, 0] + std[0, :, 0],
-        alpha=0.2,
-        facecolor='#65c9f7',
-        interpolate=True)
-
-    # Make the plot pretty
-    plt.yticks([-2, 0, 2], fontsize=16)
-    plt.xticks([-2, 0, 2], fontsize=16)
-    plt.ylim([-2, 2])
-    plt.grid('off')
-    ax = plt.gca()
-    plt.show()
-     
 
 
 
@@ -102,11 +61,11 @@ if __name__ == "__main__":
 
     dataset = GPData()
 
-    N_iterations = 30000 
+    N_iterations = 100000 
 
     for iter in range(N_iterations):
         total_loss = 0 
-        ((x_context, y_context), (x_target, y_target)) = dataset.generate_batch(as_tensor=True, device=device)
+        ((x_context, y_context), (x_target, y_target)) = dataset.generate_batch(batch_size=16, as_tensor=True, device=device)
 
 
         optimiser.zero_grad()
@@ -120,11 +79,16 @@ if __name__ == "__main__":
         optimiser.step()
 
 
-        if iter % 1000 == 0:
-            print(f"Loss {loss.item()}")
-            plot_functions(x_target.detach().cpu(), y_target.detach().cpu(), 
-                                 x_context.detach().cpu(), y_context.detach().cpu(),
-                                 p_y_pred.mean.detach().cpu(), p_y_pred.stddev.detach().cpu())
+        if iter % 5000 == 0: 
+            with torch.no_grad():
+                print(f"Loss {loss.item()}")
+
+                model.training = False
+                ((x_context, y_context), (x_target, y_target)) = dataset.generate_batch(batch_size=1, as_tensor=True, device=device)
+
+                p_y_pred = model(x_context, y_context, x_target)
+                plot_predictive(x_context, y_context, x_target, y_target, p_y_pred.mean, p_y_pred.stddev)
+                model.training = True
 
         
 
