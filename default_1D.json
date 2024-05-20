@@ -24,7 +24,7 @@
                 "LR": 4e-4
             },
             "batch_size": 8,
-            "iterations": 10000
+            "iterations": 1000000
         },
         "data": {
             "max_num_context": 100,
