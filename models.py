@@ -149,6 +149,7 @@ class Decoder(nn.Module):
 
         super().__init__()
         
+        self.use_r = use_r
         if use_r:
             xzr_to_py_layers = make_MLP(in_size=x_size+r_size+z_size,
                                        out_size=2*y_size,
