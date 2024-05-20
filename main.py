@@ -95,7 +95,7 @@ if __name__ == "__main__":
                 target_x, target_y = test_batch.target_x.to(device), test_batch.target_y.to(device)
 
                 p_y_pred = model(context_x, context_y, target_x)
-                plot_predictive(context_x, context_y, target_x, target_y, p_y_pred.mean, p_y_pred.stddev)
+                plot_predictive(context_x, context_y, target_x, target_y, p_y_pred.mean, p_y_pred.stddev, save=True, iter=iter)
                 model.training = True
 
         

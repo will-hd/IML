@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-def plot_predictive(context_x, context_y, target_x, target_y, mu, sigma):
+def plot_predictive(context_x, context_y, target_x, target_y, mu, sigma, save=False, iter=None):
     '''
     Plot predicted mean and variance given context and targets. 
     '''
@@ -25,4 +25,6 @@ def plot_predictive(context_x, context_y, target_x, target_y, mu, sigma):
         facecolor='#A6CEE3',
         interpolate=True)
     plt.ylim(-4, 4)
+    if save:
+        plt.savefig(f'./results/iter_{iter}.png')
     plt.show()
