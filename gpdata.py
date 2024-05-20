@@ -1,16 +1,18 @@
-
-################################################################################
-
 import torch
 import collections
 import numpy as np
 from torch.distributions.normal import Normal
+from typing import NamedTuple
 
-NPRegressionDescription = collections.namedtuple(
-    'NPRegressionDescription',
-    ('context_x', 'context_y',
-     'target_x', 'target_y',
-     'num_total_points', 'num_context_points'))
+
+class NPRegressionDescription(NamedTuple):
+    context_x: torch.Tensor
+    context_y: torch.Tensor
+    target_x: torch.Tensor
+    target_y: torch.Tensor
+    num_total_points: int
+    num_context_points: int
+
 
 class GPData():
     '''
@@ -53,9 +55,9 @@ class GPData():
 
         return kernel
 
-    def generate_curves(self, batch_size: int):
-        num_context = torch.randint(
-            low=3, high=self.max_num_context, size=(1,)).item()
+    def generate_curves(self, batch_size: int) -> NPRegressionDescription:
+        #num_context = torch.randint(
+        num_context = np.random.randint(low=3, high=self.max_num_context)
 
         if self.testing:
             num_target = self.num_points
@@ -64,8 +66,7 @@ class GPData():
                 -2, 2, steps=self.num_points).repeat(
                 batch_size, 1).unsqueeze(-1)
         else:
-            num_target = torch.randint(
-                low=0, high=self.max_num_context - num_context, size=(1,)).item()
+            num_target = np.random.randint(low=0, high=self.max_num_context - num_context)
             num_total_points = num_context + num_target
             x_values = torch.rand(
                 batch_size, num_total_points, self.x_size) * 4 - 2

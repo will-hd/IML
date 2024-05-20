@@ -1,0 +1,38 @@
+{
+    "experiment": {
+        "meta": {
+            "name": "DefaultExperiment"
+        },
+        "model": {
+            "n_layers": 151,
+            "x_size": 1,
+            "y_size": 1,
+            "r_size": 64,
+            "z_size": 64,
+            "h_size_dec": 64,
+            "h_size_enc_lat": 64,
+            "h_size_enc_det": 64,
+            "N_h_layers_dec": 3,
+            "N_xy_to_si_layers": 2,
+            "N_sc_to_qz_layers": 1,
+            "N_h_layers_enc_det": 6,
+            "use_r": false
+        },
+        "training": {
+            "optimiser": {
+                "algorithm": "Adam",
+                "LR": 4e-4
+            },
+            "batch_size": 8,
+            "iterations": 10000
+        },
+        "data": {
+            "max_num_context": 100,
+            "num_points": 400,
+            "l1_scale": "0.6",
+            "sigma_scale": 1.0,
+            "random_kernel_parameters": true
+        }
+    }
+
+}

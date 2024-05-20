@@ -1,93 +1,101 @@
-import numpy as np
 import torch
-from torch.distributions import uniform
 import torch.nn as nn
-from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from torch.distributions.kl import kl_divergence
+from torch.distributions.normal import Normal
 
 from np import NeuralProcess
-from datasets import GPData
+from gpdata import GPData
 from plot import plot_predictive
-
-def loss_func(p_y_pred, y_target, q_z_target, q_z_context): 
-    """
-    p_y_pred 
-        Shape (batch_size, num_target_points, y_size)
-    q_z_target
-        Shape (batch_size, z_size)
-    """
-
-    log_lik = p_y_pred.log_prob(y_target).sum(-1)
-    _, num_target_points = log_lik.shape
-    
-    kl = kl_divergence(q_z_target, q_z_context).sum(-1)
-    kl = kl.unsqueeze(-1).repeat(1, num_target_points)
+from config import Config, ConfigType
+import json
 
 
-    return -torch.mean(log_lik - kl / num_target_points)
+def loss_function(pred_dist: Normal, 
+                  target_y: torch.Tensor,
+                  posterior: Normal,
+                  prior: Normal):
+
+    num_targets = target_y.size(-2)
+    log_p = pred_dist.log_prob(target_y).sum(-1)
+    # assert log_p.shape[-1] == 1
+    # log_p = log_p.squeeze(-1)
+
+    kl_div = torch.sum(kl_divergence(posterior, prior), dim=-1, keepdim=True)
+
+    loss = -torch.mean(log_p - kl_div / num_targets)
+    return loss
 
 
 
 if __name__ == "__main__":
+    
 
-    x_size = 1
-    y_size = 1
-    h_size = 128
-    z_size = 64
-    r_size = 64
+    with open('default_1D.json') as cf_file:
+        cfg = json.load(cf_file)
+        cfg = ConfigType(cfg)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model = NeuralProcess(
-                x_size = x_size,
-                y_size = y_size,
-                r_size = r_size,
-                z_size = z_size,
-                h_size_dec = h_size,
-                h_size_enc_lat = h_size,
-                h_size_enc_det = h_size,
-                N_h_layers_dec = 3,
-                N_xy_to_si_layers = 2,
-                N_sc_to_qz_layers = 1,
-                N_h_layers_enc_det = 6,
-                use_r = False
+                x_size=cfg['experiment']['model']['x_size'],
+                y_size=cfg['experiment']['model']['y_size'],
+                r_size=cfg['experiment']['model']['r_size'],
+                z_size=cfg['experiment']['model']['z_size'],
+                h_size_dec=cfg['experiment']['model']['h_size_dec'],
+                h_size_enc_lat=cfg['experiment']['model']['h_size_enc_lat'],
+                h_size_enc_det=cfg['experiment']['model']['h_size_enc_det'],
+                N_h_layers_dec=cfg['experiment']['model']['N_h_layers_dec'],
+                N_xy_to_si_layers=cfg['experiment']['model']['N_xy_to_si_layers'],
+                N_sc_to_qz_layers=cfg['experiment']['model']['N_sc_to_qz_layers'],
+                N_h_layers_enc_det=cfg['experiment']['model']['N_h_layers_enc_det'],
+                use_r=cfg['experiment']['model']['use_r'],
                 ).to(device)
+                
 
     print(model)
     model.training = True
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
-    optimiser = torch.optim.Adam(model.parameters(), lr=5e-5)
+    LR = cfg['experiment']['training']['optimiser']['LR']
+    optimiser= torch.optim.Adam(model.parameters(), lr=LR)
 
-    dataset = GPData()
+    N_ITERS = cfg['experiment']['training']['iterations']
+    MAX_NUM_CONTEXT = cfg['experiment']['data']['max_num_context']
+    dataset = GPData(MAX_NUM_CONTEXT)
 
-    N_iterations = 100000 
+    train_loss = []
 
-    for iter in range(N_iterations):
+    for iter in range(N_ITERS):
         total_loss = 0 
-        ((x_context, y_context), (x_target, y_target)) = dataset.generate_batch(batch_size=16, as_tensor=True, device=device)
+        batch = dataset.generate_curves(batch_size=16)
 
+        context_x, context_y = batch.context_x.to(device), batch.context_y.to(device)
+        target_x, target_y = batch.target_x.to(device), batch.target_y.to(device)
 
         optimiser.zero_grad()
 
-        p_y_pred, q_z_target, q_z_context = model(x_context, y_context, x_target, y_target)
+        p_y_pred, q_z_target, q_z_context = model(context_x, context_y, target_x, target_y)
 
 
-        loss = loss_func(p_y_pred, y_target, q_z_target, q_z_context)
+        loss = loss_function(p_y_pred, target_y, q_z_target, q_z_context)
 
         loss.backward()
         optimiser.step()
+        train_loss.append(loss.item())
 
+        if iter % 5000 == 0:
+            print(f"Iter: {iter}, Loss {loss.item()}")
 
-        if iter % 5000 == 0: 
+        if iter % 30000 == 0: 
             with torch.no_grad():
-                print(f"Loss {loss.item()}")
-
                 model.training = False
-                ((x_context, y_context), (x_target, y_target)) = dataset.generate_batch(batch_size=1, as_tensor=True, device=device)
+                data_test = GPData(max_num_context=MAX_NUM_CONTEXT, testing=True)
+                test_batch = data_test.generate_curves(batch_size=1)
+                context_x, context_y = test_batch.context_x.to(device), test_batch.context_y.to(device)
+                target_x, target_y = test_batch.target_x.to(device), test_batch.target_y.to(device)
 
-                p_y_pred = model(x_context, y_context, x_target)
-                plot_predictive(x_context, y_context, x_target, y_target, p_y_pred.mean, p_y_pred.stddev)
+                p_y_pred = model(context_x, context_y, target_x)
+                plot_predictive(context_x, context_y, target_x, target_y, p_y_pred.mean, p_y_pred.stddev)
                 model.training = True
 
         
