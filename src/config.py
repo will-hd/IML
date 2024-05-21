@@ -54,8 +54,8 @@ class ModelConfigType(TypedDict):
     h_size_enc_lat: int
     h_size_enc_det: int
     N_h_layers_dec: int
-    N_xy_to_si_layers: int
-    N_sc_to_qz_layers: int
+    N_h_layers_enc_lat_phi: int
+    N_h_layers_enc_lat_rho: int
     N_h_layers_enc_det: int
     use_r: bool
 

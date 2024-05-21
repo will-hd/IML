@@ -4,8 +4,8 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.distributions.kl import kl_divergence
 
-from mlp import MLP
-from models import LatentEncoder, DeterminisitcEncoder, Decoder
+from .mlp import MLP
+from .models import LatentEncoder, DeterminisitcEncoder, Decoder
 
 
 class NeuralProcess(nn.Module):
@@ -19,8 +19,10 @@ class NeuralProcess(nn.Module):
                  h_size_enc_lat: int = 128,
                  h_size_enc_det: int = 128,
                  N_h_layers_dec: int = 3,
-                 N_xy_to_si_layers: int = 2,
-                 N_sc_to_qz_layers: int = 1,
+                 N_h_layers_enc_lat_phi: int = 2,
+                 N_h_layers_enc_lat_rho: int = 1,
+                 #N_xy_to_si_layers: int = 2,
+                 #N_sc_to_qz_layers: int = 1,
                  N_h_layers_enc_det: int = 6,
                  use_r: bool | None = None
                  ) -> None:
@@ -30,7 +32,7 @@ class NeuralProcess(nn.Module):
         assert use_r is not None, "use_r must be specified"
 
         self.latent_encoder = LatentEncoder(x_size, y_size, h_size_enc_lat,
-                                            z_size, N_xy_to_si_layers, N_sc_to_qz_layers)
+                                            z_size, N_h_layers_enc_lat_phi, N_h_layers_enc_lat_rho)
         if use_r:
             self.deterministic_encoder = DeterminisitcEncoder(x_size, y_size, 
                                                               h_size_enc_det, r_size,

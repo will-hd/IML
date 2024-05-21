@@ -28,7 +28,7 @@ def make_MLP(
 
 class LatentEncoder(nn.Module):
     """
-    Latent encoder
+    Latent encoder using DeepSets architecture (i.e. MLP for each input, sum, then MLP the sum to output)
     """
     def __init__(self, 
                  x_size: int = 1, 

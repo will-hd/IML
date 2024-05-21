@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 from torch.distributions.kl import kl_divergence
 from torch.distributions.normal import Normal
 
-from np import NeuralProcess
-from gpdata import GPData
-from plot import plot_predictive
-from config import Config, ConfigType
+from src.np import NeuralProcess
+from src.gpdata import GPData
+from src.plot import plot_predictive
+from src.config import ConfigType
+import argparse
 import json
 
 
@@ -31,7 +32,12 @@ def loss_function(pred_dist: Normal,
 if __name__ == "__main__":
     
 
-    with open('default_1D.json') as cf_file:
+    parser = argparse.ArgumentParser(description='Process config file.')
+    parser.add_argument('--config_file', type=str, help='Path to the config file')
+
+    args = parser.parse_args()
+
+    with open(args.config_file) as cf_file:
         cfg = json.load(cf_file)
         cfg = ConfigType(cfg)
 
@@ -46,8 +52,8 @@ if __name__ == "__main__":
                 h_size_enc_lat=cfg['experiment']['model']['h_size_enc_lat'],
                 h_size_enc_det=cfg['experiment']['model']['h_size_enc_det'],
                 N_h_layers_dec=cfg['experiment']['model']['N_h_layers_dec'],
-                N_xy_to_si_layers=cfg['experiment']['model']['N_xy_to_si_layers'],
-                N_sc_to_qz_layers=cfg['experiment']['model']['N_sc_to_qz_layers'],
+                N_h_layers_enc_lat_phi=cfg['experiment']['model']['N_h_layers_enc_lat_phi'],
+                N_h_layers_enc_lat_rho=cfg['experiment']['model']['N_h_layers_enc_lat_rho'],
                 N_h_layers_enc_det=cfg['experiment']['model']['N_h_layers_enc_det'],
                 use_r=cfg['experiment']['model']['use_r'],
                 ).to(device)

@@ -12,8 +12,8 @@
             "h_size_enc_lat": 128,
             "h_size_enc_det": 128,
             "N_h_layers_dec": 4,
-            "N_xy_to_si_layers": 2,
-            "N_sc_to_qz_layers": 2,
+            "N_h_layers_enc_lat_phi": 2,
+            "N_h_layers_enc_lat_rho": 2,
             "N_h_layers_enc_det": 5,
             "use_r": true
         },
