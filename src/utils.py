@@ -1,5 +1,29 @@
 import numpy as np
 import torch
+import torch.nn as nn
+
+from typing import Callable
+
+def make_MLP(
+             in_size: int,
+             out_size: int,
+             hidden_size: int,
+             num_h_layers: int, # number of hidden layers
+             bias: bool,
+             hidden_acc: Callable,
+             output_acc: Callable
+             ) -> list[nn.Module]:
+    h = [hidden_size] * (num_h_layers)
+
+    layers = []
+    for i, (n, m) in enumerate(zip([in_size] + h, h + [out_size])):
+        layers.append(nn.Linear(n, m, bias=bias))
+        if i != num_h_layers:
+            layers.append(hidden_acc)
+        else:
+            layers.append(output_acc)
+
+    return layers
 
 
 def context_target_split(x, y, num_context, num_extra_target):
