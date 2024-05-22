@@ -106,8 +106,8 @@ class SineData():
             target_y=target_y.to(device),
             num_total_points=target_x.shape[1],
             num_context_points=num_context,
-            a=a,
-            b=b,
-            c=c
+            a=a.to(device),
+            b=b.to(device),
+            c=c.to(device)
             )
         

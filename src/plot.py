@@ -1,18 +1,13 @@
 import matplotlib.pyplot as plt
 import torch
 
-def plot_predictive(model, data_generator, knowledge_type=None, save=False, iter=None):
+def plot_predictive(model, batch, knowledge, save=False, iter=None):
     '''
     Plot predicted mean and variance given context and targets. 
     '''
 
     with torch.no_grad():
         # make device be the device of the model
-        batch = data_generator.generate_batch(1, testing=True, device=model.device)
-        if knowledge_type == 'a':
-            knowledge = batch.a.to(model.device)
-        else: 
-            knowledge = None   
         p_y_pred = model(batch.context_x, batch.context_y, knowledge, batch.target_x, batch.target_y)
         mu = p_y_pred.mean
         sigma = p_y_pred.stddev
