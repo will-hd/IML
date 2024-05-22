@@ -9,6 +9,8 @@ from .models import LatentEncoder, DeterminisitcEncoder, Decoder
 from .knowledge_encoder import KnowledgeEncoder
 from .utils import make_MLP
 
+import logging
+logger = logging.getLogger(__name__)
 
 class InformedNeuralProcess(nn.Module):
 
@@ -115,6 +117,9 @@ class InformedNeuralProcess(nn.Module):
 
             return p_y_pred
 
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
 if __name__ == "__main__":
     pass

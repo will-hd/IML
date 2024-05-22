@@ -14,9 +14,6 @@ class INPRegressionDescription(NamedTuple):
     b: torch.Tensor
     c: torch.Tensor
     
-
-
-
 class SineData():
     '''
     Generates curves using a Gaussian Process
@@ -24,10 +21,10 @@ class SineData():
     def __init__(self, 
                  max_num_context: int = 10, 
                  num_target: int = 100,
-                 num_test_points: int = 400,
+                 num_test_points: int = 100,
                  x_size: int = 1,
                  y_size: int = 1, 
-                 a_scale: float = 0.6,
+                 a_scale: float = 1,
                  b_scale: float = 6,
                  c_scale: float = 1,
                  random_kernel_parameters: bool = True,
@@ -46,9 +43,28 @@ class SineData():
         self.testing = testing
 
 
-    def generate_curves(self, batch_size: int, testing: bool = False) -> INPRegressionDescription:
+    def generate_batch(self, 
+                       batch_size: int, 
+                       testing: bool = False, 
+                       override_num_context: int = None,
+                       device: torch.device = torch.device('cpu')
+                       ) -> INPRegressionDescription:
+        """
+        Parameters
+        ----------
+        batch_size : int
+            Number of curves to generate
+        testing : bool
+            If True, generate a fixed number of target points
+        override_num_context : int
+            If not None, override the number of context points
+        device : torch.device
+            Device to store the generated data
+        """
         #num_context = torch.randint(
         num_context = np.random.randint(low=1, high=self.max_num_context)
+        if override_num_context is not None:
+            num_context = override_num_context
 
         if testing:
             num_target = self.num_test_points
@@ -60,7 +76,7 @@ class SineData():
 
         if self.random_kernel_parameters:
             a = torch.rand(batch_size, 1, self.x_size) * (2*self.a_scale) - self.a_scale
-            b = torch.rand(batch_size, 1, self.x_size) * (2*self.a_scale) - self.a_scale
+            b = torch.rand(batch_size, 1, self.x_size) * (self.b_scale - 0.1) + 0.1
             c = torch.rand(batch_size, 1, self.y_size) * (2*self.c_scale) - self.c_scale
         else:
             a = torch.ones(batch_size, 1, self.x_size) * self.a_scale
@@ -84,10 +100,10 @@ class SineData():
             context_y = y_values[:, :num_context, :]
 
         return INPRegressionDescription(
-            context_x=context_x,
-            context_y=context_y,
-            target_x=target_x,
-            target_y=target_y,
+            context_x=context_x.to(device),
+            context_y=context_y.to(device),
+            target_x=target_x.to(device),
+            target_y=target_y.to(device),
             num_total_points=target_x.shape[1],
             num_context_points=num_context,
             a=a,
