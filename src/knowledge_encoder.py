@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from .utils import make_MLP
+from .models import make_MLP
 
 
 class KnowledgeEncoder(nn.Module):

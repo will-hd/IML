@@ -7,7 +7,7 @@ from torch.distributions.kl import kl_divergence
 from .mlp import MLP
 from .models import LatentEncoder, DeterminisitcEncoder, Decoder
 from .knowledge_encoder import KnowledgeEncoder
-from .utils import make_MLP
+from .models import make_MLP
 
 import logging
 logger = logging.getLogger(__name__)

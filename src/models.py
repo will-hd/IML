@@ -3,8 +3,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 
-from .utils import make_MLP
+from typing import Callable
 
+def make_MLP(
+             in_size: int,
+             out_size: int,
+             hidden_size: int,
+             num_h_layers: int, # number of hidden layers
+             bias: bool,
+             hidden_acc: Callable,
+             output_acc: Callable
+             ) -> list[nn.Module]:
+    h = [hidden_size] * (num_h_layers)
+
+    layers = []
+    for i, (n, m) in enumerate(zip([in_size] + h, h + [out_size])):
+        layers.append(nn.Linear(n, m, bias=bias))
+        if i != num_h_layers:
+            layers.append(hidden_acc)
+        else:
+            layers.append(output_acc)
+
+    return layers
 
 class LatentEncoder(nn.Module):
     """
