@@ -4,17 +4,10 @@ import numpy as np
 from torch.distributions.normal import Normal
 from typing import NamedTuple
 
-
-class NPRegressionDescription(NamedTuple):
-    x_context: torch.Tensor
-    y_context: torch.Tensor
-    x_target: torch.Tensor
-    y_target: torch.Tensor
-    num_total_points: int
-    num_context_points: int
+from .data_generator import DataGenerator, NPRegressionDescription
 
 
-class GPData():
+class GPData(DataGenerator):
     '''
     Generates curves using a Gaussian Process
     '''
@@ -66,7 +59,7 @@ class GPData():
     def generate_batch(self, 
                        batch_size: int,
                        testing: bool = False,
-                       override_num_context: int = None,
+                       override_num_context: int | None = None,
                        device: torch.device = torch.device('cpu')
                        ) -> NPRegressionDescription:
         #num_context = torch.randint(

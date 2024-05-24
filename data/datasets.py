@@ -6,26 +6,17 @@ from math import pi
 import matplotlib.pyplot as plt
 
 from typing import NamedTuple
+from .data_generator import DataGenerator, NPRegressionDescription
 
-
-class NPRegressionDescription(NamedTuple):
-    x_context: torch.Tensor | np.ndarray
-    y_context: torch.Tensor | np.ndarray
-    x_target: torch.Tensor | np.ndarray
-    y_target: torch.Tensor | np.ndarray
-    num_total_points: int
-    num_context_points: int
-
-class GPData():
+class GPData(DataGenerator):
     """
     self.data = [ ((x_context, y_context), (x_target, y_target)) ]
     """
 
-    def __init__(self, sigma_range=(0.1, 1), ls_range=(0.1, 0.6), batch_size=16, max_num_context=97):
+    def __init__(self, sigma_range=(0.1, 1), ls_range=(0.1, 0.6), max_num_context=97):
 
         self.sigma_range = sigma_range
         self.ls_range = ls_range
-        self.batch_size = batch_size
         self.max_num_context = max_num_context
     
     def rbf_kernel(self, x1, x2, sigma, ls):
@@ -43,14 +34,27 @@ class GPData():
         f = np.random.multivariate_normal(mu.flatten(), K, 1)
 
         return f.T
-    def generate_batch(self, as_tensor: bool = False, device = None):
 
-        num_context = np.random.randint(low=3, high=self.max_num_context)
-        num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
+    def generate_batch(self,
+                       batch_size: int,
+                       testing: bool = False,
+                       override_num_context: int | None = None,
+                       device: torch.device = torch.device('cpu')
+                       ) -> NPRegressionDescription:
+
+        if override_num_context:
+            num_context = override_num_context
+        else:
+            num_context = np.random.randint(low=3, high=self.max_num_context)
+
+        if testing:
+            num_target = 100
+        else:
+            num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
     
         x_batch = [] 
         y_batch = []
-        for _ in range(self.batch_size):
+        for _ in range(batch_size):
             sigma = np.random.uniform(*self.sigma_range) 
             ls = np.random.uniform(*self.ls_range) 
 
@@ -80,25 +84,13 @@ class GPData():
         
 
 
-        if as_tensor:
-            assert device, "as_tensor = True so should specify device"
-            return NPRegressionDescription(
-                x_context = torch.from_numpy(x_context).to(torch.float32).to(device),
-                y_context = torch.from_numpy(y_context).to(torch.float32).to(device),
-                x_target = torch.from_numpy(x_target).to(torch.float32).to(device),
-                y_target = torch.from_numpy(y_target).to(torch.float32).to(device),
-                num_total_points=x_target.shape[1],
-                num_context_points=num_context)
-
-        else:
-            return NPRegressionDescription(
-                    x_context = x_context,
-                    y_context=y_context,
-                    x_target=x_target,
-                    y_target=y_target,
-                    num_total_points=x_target.shape[1],
-                    num_context_points=num_context)
-
+        return NPRegressionDescription(
+            x_context = torch.from_numpy(x_context).to(torch.float32).to(device),
+            y_context = torch.from_numpy(y_context).to(torch.float32).to(device),
+            x_target = torch.from_numpy(x_target).to(torch.float32).to(device),
+            y_target = torch.from_numpy(y_target).to(torch.float32).to(device),
+            num_total_points=x_target.shape[1],
+            num_context_points=num_context)
 
 
 
@@ -194,7 +186,7 @@ class SineData(Dataset):
         self.data = []
         a_min, a_max = amplitude_range
         b_min, b_max = shift_range
-        for i in range(num_samples):
+        for _ in range(num_samples):
             # Sample random amplitude
             a = (a_max - a_min) * np.random.rand() + a_min
             # Sample random shift
@@ -216,13 +208,13 @@ if __name__ == "__main__":
     dataset = GPData()
 
 
-    batch = dataset.generate_batch()
-    
-    print(batch[0][0].shape)
-
-    for i, (x, y) in enumerate(zip(batch[0][0].squeeze(), batch[0][1].squeeze())):
-        sort_idx = np.argsort(x) 
-        print(sort_idx)
-        plt.plot(x[sort_idx], y[sort_idx])
-        plt.show()
+    #batch = dataset.generate_batch()
+#    
+#    print(batch[0][0].shape)
+#
+#    for i, (x, y) in enumerate(zip(batch[0][0].squeeze(), batch[0][1].squeeze())):
+#        sort_idx = np.argsort(x) 
+#        print(sort_idx)
+#        plt.plot(x[sort_idx], y[sort_idx])
+#        plt.show()
 
