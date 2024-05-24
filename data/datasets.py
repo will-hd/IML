@@ -79,8 +79,6 @@ class GPData():
         y_target = y_batch[:, :num_target, :]
         
 
-        if not as_tensor:
-            return ((x_context, y_context), (x_target, y_target))
 
         if as_tensor:
             assert device, "as_tensor = True so should specify device"
