@@ -25,6 +25,7 @@ class GPData():
                  y_size: int = 1, 
                  l1_scale: float = 0.6,
                  sigma_scale: float = 1.0,
+                 sigma_noise: float = 2e-2,
                  random_kernel_parameters: bool = True,
                  ):
 
@@ -34,10 +35,17 @@ class GPData():
         self.y_size = y_size
         self.l1_scale = l1_scale
         self.sigma_scale = sigma_scale
+        self.sigma_noise = sigma_noise
         self.random_kernel_parameters = random_kernel_parameters
 
-    def _gaussian_kernel(self, xdata, l1, sigma_f, sigma_noise=2e-2):
+    def _gaussian_kernel(self, xdata, l1, sigma_f, jitter=1e-9):
         num_total_points = xdata.shape[1]
+
+        # make all parameters double precision
+        xdata = xdata.double()
+        l1 = l1.double()
+        sigma_f = sigma_f.double()
+
 
         # Expand and take the difference
         xdata1 = xdata.unsqueeze(1)  # [B, 1, num_total_points, x_size]
@@ -48,8 +56,10 @@ class GPData():
         norm = torch.sum(norm, -1)
 
         kernel = sigma_f[:, :, None, None]**2 * torch.exp(-0.5 * norm)
-        kernel += (sigma_noise**2) * torch.eye(
-            num_total_points).expand(kernel.shape)
+        kernel += jitter * torch.eye(num_total_points, dtype=torch.double).expand(kernel.shape) 
+
+        #kernel += (self.sigma_noise**2) * torch.eye(
+        #        num_total_points).expand(kernel.shape)
 
         return kernel
 
@@ -89,9 +99,19 @@ class GPData():
             sigma_f = torch.ones(
                 batch_size, self.y_size) * self.sigma_scale
 
-        kernel = self._gaussian_kernel(x_values, l1, sigma_f)
+        jitter = 1e-9
+        try: 
+            kernel = self._gaussian_kernel(x_values, l1, sigma_f, jitter=jitter)
 
-        cholesky = torch.linalg.cholesky(kernel.double()).float()
+            cholesky = torch.linalg.cholesky(kernel.double()).float()
+        except Exception:
+            jitter = 1e-8
+            while jitter < 1e-3:
+                try:
+                    kernel = self._gaussian_kernel(x_values, l1, sigma_f, jitter=jitter)
+                    cholesky = torch.linalg.cholesky(kernel.double()).float()
+                except Exception:
+                    jitter *= 10
 
         y_values = torch.matmul(
             cholesky, 

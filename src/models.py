@@ -81,8 +81,8 @@ class LatentEncoder(nn.Module):
     This consists of a 'phi' and 'rho' network: output = \\rho ( \\sum_i \\phi(x_i) )
     """
     def __init__(self, 
-                 x_dim: int = 1,
-                 y_dim: int = 1,
+                 x_dim: int,
+                 y_dim: int,
                  hidden_dim: int = 128,
                  latent_dim: int = 128, # i.e. z_dim
                  n_h_layers_phi: int = 3,
@@ -167,7 +167,7 @@ class LatentEncoder(nn.Module):
         
         latent_output = self.rho(mean_repr) # Shape (batch_size, 2*latent_dim)
 
-        mean, pre_stddev = torch.chunk(latent_output, 2, dim=1)
+        mean, pre_stddev = torch.chunk(latent_output, 2, dim=-1)
         stddev = 0.1 + 0.9*F.sigmoid(pre_stddev) # Shape (batch_size, latent_dim)
 
         return Normal(mean, stddev) # Distribution q(z|x,y): Shape (batch_size, 1, latent_dim)
@@ -179,8 +179,8 @@ class DeterminisitcEncoder(nn.Module):
     Deterministic encoder
     """
     def __init__(self,
-                 x_dim: int = 1,
-                 y_dim: int = 1,
+                 x_dim: int,
+                 y_dim: int,
                  hidden_dim: int = 128,
                  determ_dim: int = 128, # i.e. z_dim
                  n_h_layers_phi: int = 3,
@@ -260,8 +260,8 @@ class Decoder(nn.Module):
     Decoder
     """
     def __init__(self, 
-                 x_dim: int = 1, 
-                 y_dim: int = 1, 
+                 x_dim: int, 
+                 y_dim: int, 
                  hidden_dim: int = 128, 
                  latent_dim: int = 128,
                  determ_dim: int = 128,
@@ -330,7 +330,7 @@ class Decoder(nn.Module):
         
         decoder_output = self.decoder(decoder_input) # Shape (batch_size, num_target_points, 2*y_dim)
 
-        mean, pre_stddev = torch.chunk(decoder_output, 2, dim=2)
+        mean, pre_stddev = torch.chunk(decoder_output, 2, dim=-1)
         stddev = 0.1 + 0.9 * F.softplus(pre_stddev)
 
         return Normal(mean, stddev) # Shape (batch_size, num_target_points, y_dim)

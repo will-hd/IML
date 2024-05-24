@@ -45,7 +45,7 @@ def plot_predictive(model, batch, knowledge, save=False, iter=None):
 
     with torch.no_grad():
         # make device be the device of the model
-        p_y_pred = model(batch.context_x, batch.context_y, knowledge, batch.target_x, batch.target_y)
+        p_y_pred = model(batch.context_x, batch.context_y, batch.target_x, batch.target_y)
         mu = p_y_pred.mean
         sigma = p_y_pred.stddev
         
