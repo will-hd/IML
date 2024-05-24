@@ -5,10 +5,20 @@ from scipy.spatial.distance import cdist
 from math import pi
 import matplotlib.pyplot as plt
 
+from typing import NamedTuple
+
+
+class NPRegressionDescription(NamedTuple):
+    x_context: torch.Tensor | np.ndarray
+    y_context: torch.Tensor | np.ndarray
+    x_target: torch.Tensor | np.ndarray
+    y_target: torch.Tensor | np.ndarray
+    num_total_points: int
+    num_context_points: int
 
 class GPData():
     """
-    self.data = [ ((context_x, context_y), (target_x, target_y)) ]
+    self.data = [ ((x_context, y_context), (x_target, y_target)) ]
     """
 
     def __init__(self, sigma_range=(0.1, 1), ls_range=(0.1, 0.6), batch_size=16, max_num_context=97):
@@ -18,54 +28,6 @@ class GPData():
         self.batch_size = batch_size
         self.max_num_context = max_num_context
     
-    def generate_batch(self, as_tensor: bool = False, device = None):
-
-        num_context = np.random.randint(low=3, high=self.max_num_context)
-        num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
-    
-        batch_x = [] 
-        batch_y = []
-        for _ in range(self.batch_size):
-            sigma = np.random.uniform(*self.sigma_range) 
-            ls = np.random.uniform(*self.ls_range) 
-
-            x = np.sort(np.random.uniform(-2, 2, num_target)).reshape(-1,1)
-            y = self.sample_GP(x, sigma, ls)
-            
-            batch_x.append(x)
-            batch_y.append(y)
-
-        batch_x = np.array(batch_x)
-        batch_y = np.array(batch_y)
-#                context_data = (x[:num_context], y[:num_context])
-#                target_data = (x[num_context:], y[num_context:])
-
-#                batch_context.append(context_data)
-#                batch_target.append(target_data)
-        # make indices of length num_context
-        context_idx = np.random.choice(num_target, num_context, replace=False)
-
-        context_x = batch_x[:, context_idx, :]
-        context_y = batch_y[:, context_idx, :]
-        # context_x = batch_x[:, :num_context, :]
-        # context_y = batch_y[:, :num_context, :]
-
-        target_x = batch_x[:, :num_target, :]
-        target_y = batch_y[:, :num_target, :]
-        
-
-        if not as_tensor:
-            return ((context_x, context_y), (target_x, target_y))
-
-        else:
-            assert device, "as_tensor = True so should specify device"
-            context_x = torch.from_numpy(context_x).to(torch.float32).to(device)
-            context_y = torch.from_numpy(context_y).to(torch.float32).to(device)
-            target_x = torch.from_numpy(target_x).to(torch.float32).to(device)
-            target_y = torch.from_numpy(target_y).to(torch.float32).to(device)
-
-            return ((context_x, context_y), (target_x, target_y))
-
     def rbf_kernel(self, x1, x2, sigma, ls):
         if x2 is None:
             d = cdist(x1, x1)
@@ -81,6 +43,65 @@ class GPData():
         f = np.random.multivariate_normal(mu.flatten(), K, 1)
 
         return f.T
+    def generate_batch(self, as_tensor: bool = False, device = None):
+
+        num_context = np.random.randint(low=3, high=self.max_num_context)
+        num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
+    
+        x_batch = [] 
+        y_batch = []
+        for _ in range(self.batch_size):
+            sigma = np.random.uniform(*self.sigma_range) 
+            ls = np.random.uniform(*self.ls_range) 
+
+            x = np.sort(np.random.uniform(-2, 2, num_target)).reshape(-1,1)
+            y = self.sample_GP(x, sigma, ls)
+            
+            x_batch.append(x)
+            y_batch.append(y)
+
+        x_batch = np.array(x_batch)
+        y_batch = np.array(y_batch)
+#                context_data = (x[:num_context], y[:num_context])
+#                target_data = (x[num_context:], y[num_context:])
+
+#                batch_context.append(context_data)
+#                batch_target.append(target_data)
+        # make indices of length num_context
+        context_idx = np.random.choice(num_target, num_context, replace=False)
+
+        x_context = x_batch[:, context_idx, :]
+        y_context = y_batch[:, context_idx, :]
+        # x_context = x_batch[:, :num_context, :]
+        # y_context = y_batch[:, :num_context, :]
+
+        x_target = x_batch[:, :num_target, :]
+        y_target = y_batch[:, :num_target, :]
+        
+
+        if not as_tensor:
+            return ((x_context, y_context), (x_target, y_target))
+
+        if as_tensor:
+            assert device, "as_tensor = True so should specify device"
+            return NPRegressionDescription(
+                x_context = torch.from_numpy(x_context).to(torch.float32).to(device),
+                y_context = torch.from_numpy(y_context).to(torch.float32).to(device),
+                x_target = torch.from_numpy(x_target).to(torch.float32).to(device),
+                y_target = torch.from_numpy(y_target).to(torch.float32).to(device),
+                num_total_points=x_target.shape[1],
+                num_context_points=num_context)
+
+        else:
+            return NPRegressionDescription(
+                    x_context = x_context,
+                    y_context=y_context,
+                    x_target=x_target,
+                    y_target=y_target,
+                    num_total_points=x_target.shape[1],
+                    num_context_points=num_context)
+
+
 
 
 class GP_sine_data():
@@ -98,8 +119,8 @@ class GP_sine_data():
         num_target = 4
         # num_target = np.random.randint(low=num_context+1, high=100) # *includes num_context*
     
-        batch_x = [] 
-        batch_y = []
+        x_batch = [] 
+        y_batch = []
         for _ in range(self.batch_size):
             sigma = np.random.uniform(*self.sigma_range) 
             ls = np.random.uniform(*self.ls_range) 
@@ -107,11 +128,11 @@ class GP_sine_data():
             x = np.sort(np.random.uniform(-2, 2, num_target)).reshape(-1,1)
             y = self.sample_GP(x, sigma, ls)
             
-            batch_x.append(x)
-            batch_y.append(y)
+            x_batch.append(x)
+            y_batch.append(y)
 
-        batch_x = np.array(batch_x)
-        batch_y = np.array(batch_y)
+        x_batch = np.array(x_batch)
+        y_batch = np.array(y_batch)
 #                context_data = (x[:num_context], y[:num_context])
 #                target_data = (x[num_context:], y[num_context:])
 
@@ -120,26 +141,26 @@ class GP_sine_data():
         # make indices of length num_context
         context_idx = np.random.choice(num_target, num_context, replace=False)
 
-        context_x = batch_x[:, context_idx, :]
-        context_y = batch_y[:, context_idx, :]
-        # context_x = batch_x[:, :num_context, :]
-        # context_y = batch_y[:, :num_context, :]
+        x_context = x_batch[:, context_idx, :]
+        y_context = y_batch[:, context_idx, :]
+        # x_context = x_batch[:, :num_context, :]
+        # y_context = y_batch[:, :num_context, :]
 
-        target_x = batch_x[:, :num_target, :]
-        target_y = batch_y[:, :num_target, :]
+        x_target = x_batch[:, :num_target, :]
+        y_target = y_batch[:, :num_target, :]
         
 
         if not as_tensor:
-            return ((context_x, context_y), (target_x, target_y))
+            return ((x_context, y_context), (x_target, y_target))
 
         else:
             assert device, "as_tensor = True so should specify device"
-            context_x = torch.from_numpy(context_x).to(torch.float32).to(device)
-            context_y = torch.from_numpy(context_y).to(torch.float32).to(device)
-            target_x = torch.from_numpy(target_x).to(torch.float32).to(device)
-            target_y = torch.from_numpy(target_y).to(torch.float32).to(device)
+            x_context = torch.from_numpy(x_context).to(torch.float32).to(device)
+            y_context = torch.from_numpy(y_context).to(torch.float32).to(device)
+            x_target = torch.from_numpy(x_target).to(torch.float32).to(device)
+            y_target = torch.from_numpy(y_target).to(torch.float32).to(device)
 
-            return ((context_x, context_y), (target_x, target_y))
+            return ((x_context, y_context), (x_target, y_target))
 
 class SineData(Dataset):
     """
