@@ -74,8 +74,8 @@ class GPData(DataGenerator):
                 -2, 2, steps=self.num_points).repeat(
                 batch_size, 1).unsqueeze(-1)
         else:
-            #num_target = np.random.randint(low=0, high=self.max_num_context - num_context)
-            num_target = np.random.randint(low=1, high=100 - num_context)
+            num_target = np.random.randint(low=0, high=self.max_num_context - num_context)
+            #num_target = np.random.randint(low=1, high=100 - num_context)
             num_total_points = num_context + num_target
             x_values = torch.rand(
                 batch_size, num_total_points, self.x_size) * 4 - 2
