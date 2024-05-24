@@ -8,26 +8,26 @@ def plot_predictive_wassname(model, batch, save=False, iter=None):
 
     with torch.no_grad():
         # make device be the device of the model
-        y_pred, losses, extras = model(batch.context_x, batch.context_y, batch.target_x, batch.target_y)
+        y_pred, losses, extras = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target)
         mu = extras["y_dist"].mean
         sigma = extras["y_dist"].stddev
         
-    context_x = batch.context_x.cpu()
-    context_y = batch.context_y.cpu()
-    target_x = batch.target_x.cpu()
-    target_y = batch.target_y.cpu()
+    x_context = batch.x_context.cpu()
+    y_context = batch.y_context.cpu()
+    x_target = batch.x_target.cpu()
+    y_target = batch.y_target.cpu()
     mu = mu.cpu()
     sigma = sigma.cpu()
     plt.figure(figsize=(5, 3))  
     # Plot ground truth GP
-    plt.plot(target_x.flatten(), target_y.flatten(), 'k:')
+    plt.plot(x_target.flatten(), y_target.flatten(), 'k:')
     # Plot context points
-    plt.scatter(context_x.flatten(), context_y.flatten(), c='k')
+    plt.scatter(x_context.flatten(), y_context.flatten(), c='k')
     # Plot mean of pred
-    plt.plot(target_x.flatten(), mu.flatten())
+    plt.plot(x_target.flatten(), mu.flatten())
     # Plot variance of pred
     plt.fill_between(
-        target_x.flatten(),
+        x_target.flatten(),
         mu.flatten() - sigma.flatten(),
         mu.flatten() + sigma.flatten(),
         alpha=0.5,
@@ -45,26 +45,26 @@ def plot_predictive(model, batch, knowledge, save=False, iter=None):
 
     with torch.no_grad():
         # make device be the device of the model
-        p_y_pred = model(batch.context_x, batch.context_y, batch.target_x, batch.target_y)
+        p_y_pred = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target)
         mu = p_y_pred.mean
         sigma = p_y_pred.stddev
         
-    context_x = batch.context_x.cpu()
-    context_y = batch.context_y.cpu()
-    target_x = batch.target_x.cpu()
-    target_y = batch.target_y.cpu()
+    x_context = batch.x_context.cpu()
+    y_context = batch.y_context.cpu()
+    x_target = batch.x_target.cpu()
+    y_target = batch.y_target.cpu()
     mu = mu.cpu()
     sigma = sigma.cpu()
     plt.figure(figsize=(5, 3))  
     # Plot ground truth GP
-    plt.plot(target_x.flatten(), target_y.flatten(), 'k:')
+    plt.plot(x_target.flatten(), y_target.flatten(), 'k:')
     # Plot context points
-    plt.scatter(context_x.flatten(), context_y.flatten(), c='k')
+    plt.scatter(x_context.flatten(), y_context.flatten(), c='k')
     # Plot mean of pred
-    plt.plot(target_x.flatten(), mu.flatten())
+    plt.plot(x_target.flatten(), mu.flatten())
     # Plot variance of pred
     plt.fill_between(
-        target_x.flatten(),
+        x_target.flatten(),
         mu.flatten() - sigma.flatten(),
         mu.flatten() + sigma.flatten(),
         alpha=0.5,

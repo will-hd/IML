@@ -6,10 +6,10 @@ from typing import NamedTuple
 
 
 class NPRegressionDescription(NamedTuple):
-    context_x: torch.Tensor
-    context_y: torch.Tensor
-    target_x: torch.Tensor
-    target_y: torch.Tensor
+    x_context: torch.Tensor
+    y_context: torch.Tensor
+    x_target: torch.Tensor
+    y_target: torch.Tensor
     num_total_points: int
     num_context_points: int
 
@@ -122,24 +122,24 @@ class GPData():
         y_values = y_values.squeeze(3).transpose(1, 2)
 
         if testing:
-            target_x = x_values
-            target_y = y_values
+            x_target = x_values
+            y_target = y_values
 
             idx = torch.randperm(num_target)
-            context_x = x_values[:, idx[:num_context], :]
-            context_y = y_values[:, idx[:num_context], :]
+            x_context = x_values[:, idx[:num_context], :]
+            y_context = y_values[:, idx[:num_context], :]
         else:
-            target_x = x_values[:, :num_target + num_context, :]
-            target_y = y_values[:, :num_target + num_context, :]
+            x_target = x_values[:, :num_target + num_context, :]
+            y_target = y_values[:, :num_target + num_context, :]
 
-            context_x = x_values[:, :num_context, :]
-            context_y = y_values[:, :num_context, :]
+            x_context = x_values[:, :num_context, :]
+            y_context = y_values[:, :num_context, :]
 
         return NPRegressionDescription(
-            context_x=context_x.to(device),
-            context_y=context_y.to(device),
-            target_x=target_x.to(device),
-            target_y=target_y.to(device),
-            num_total_points=target_x.shape[1],
+            x_context=x_context.to(device),
+            y_context=y_context.to(device),
+            x_target=x_target.to(device),
+            y_target=y_target.to(device),
+            num_total_points=x_target.shape[1],
             num_context_points=num_context)
         
