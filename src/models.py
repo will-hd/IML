@@ -266,6 +266,7 @@ class Decoder(nn.Module):
                  latent_dim: int = 128,
                  determ_dim: int = 128,
                  n_h_layers: int = 4,
+                 use_target_transform: bool = True,
                  use_deterministic_path: bool = False,
                  use_bias: bool = True
                  ):
@@ -273,12 +274,19 @@ class Decoder(nn.Module):
         super().__init__()
         
         self._use_deterministic_path = use_deterministic_path
-        self.target_transform = nn.Linear(x_dim, hidden_dim)
+        self._use_target_transform = use_target_transform
+
+        if use_target_transform:
+            self.target_transform = nn.Linear(x_dim, hidden_dim)
+            x_target_dim = hidden_dim
+        else:
+            x_target_dim = x_dim
+
 
         if use_deterministic_path:
-            decoder_input_dim = hidden_dim + latent_dim + determ_dim
+            decoder_input_dim = x_target_dim + latent_dim + determ_dim
         else:
-            decoder_input_dim = hidden_dim + latent_dim
+            decoder_input_dim = x_target_dim + latent_dim
 
         self.decoder = BatchMLP(input_dim=decoder_input_dim,
                                 output_dim=2*y_dim,
@@ -308,7 +316,11 @@ class Decoder(nn.Module):
         p_y_pred : torch.distributions.normal.Normal
             Shape (batch_size, num_target_points, y_dim)
         """
-        x = self.target_transform(x_target) # Shape (batch_size, num_target_points, hidden_dim)
+        if self._use_target_transform:
+            x = self.target_transform(x_target) # Shape (batch_size, num_target_points, hidden_dim)
+        else:
+            x = x_target
+
         _, num_target_points, _ = x.size()
 
         assert z.size(1) == 1
