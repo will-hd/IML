@@ -24,7 +24,8 @@ class NeuralProcess(nn.Module):
                  use_deterministic_path: bool = False,
                  use_bias: bool = True,
                  user_context_in_target: bool = True, # TODO investigate
-                 use_knowledge: bool = False
+                 use_knowledge: bool = False,
+                 use_linear_knowledge_encoder=False
                  ) -> None:
         super().__init__() 
 
@@ -51,7 +52,8 @@ class NeuralProcess(nn.Module):
                     hidden_dim=hidden_dim,
                     n_h_layers_phi=2,
                     n_h_layers_rho=2,
-                    use_bias=use_bias
+                    use_bias=use_bias,
+                    only_use_linear=use_linear_knowledge_encoder
             )
 
 
