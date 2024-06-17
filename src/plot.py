@@ -45,7 +45,7 @@ def plot_predictive(model, batch, knowledge, save=False, iter=None):
 
     with torch.no_grad():
         # make device be the device of the model
-        p_y_pred = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target)
+        p_y_pred = model(batch.x_context, batch.y_context, batch.x_target, knowledge, batch.y_target)
         mu = p_y_pred.mean
         sigma = p_y_pred.stddev
         
@@ -71,7 +71,7 @@ def plot_predictive(model, batch, knowledge, save=False, iter=None):
         facecolor='#A6CEE3',
         interpolate=True)
     #plt.ylim(-4, 4)
-    plt.xlim(-2, 2)
+    #plt.xlim(-2, 2)
     if save:
         plt.savefig(f'./results/iter_{iter}.png')
     plt.show()

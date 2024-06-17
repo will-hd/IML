@@ -90,6 +90,7 @@ class LatentEncoder(nn.Module):
                  use_self_attn: bool = False,
                  use_knowledge: bool = False,
                  use_bias: bool = True,
+                 return_mean_repr: bool = False
 #                 self_attention_type="dot",
 #                 n_encoder_layers=3,
 #                 min_std=0.01,
@@ -106,6 +107,7 @@ class LatentEncoder(nn.Module):
 
         self._use_self_attn = use_self_attn
         self._use_knowledge = use_knowledge
+        self._return_mean_repr = return_mean_repr
 
         self.phi = BatchMLP(input_dim=x_dim+y_dim,
                             output_dim=hidden_dim,
@@ -127,13 +129,29 @@ class LatentEncoder(nn.Module):
 
         if use_knowledge:
             pass
+#            self.agg_mlp = BatchMLP(input_dim=hidden_dim,
+#                                    ouput_dim=hidden_dim,
+#                                    hidden_dim=hidden_dim,
+#                                    n_h_layers=2,
+#                                    use_bias=use_bias,
+#                                    hidden_activation=nn.ReLU(),
+#                                    output_activation=nn.Identity())
 
+    def knowledge_aggregator(self,
+                             context_repr: torch.Tensor,
+                             knowledge_repr: torch.Tensor
+                             ) -> torch.Tensor:
+
+        if knowledge_repr is not None: 
+            return context_repr + knowledge_repr
+        else:
+            return context_repr
 
         
     def forward(self,
                 x: torch.Tensor,
                 y: torch.Tensor,
-                k: torch.Tensor | None = None) -> torch.distributions.normal.Normal:
+                k: torch.Tensor | None = None) -> torch.distributions.normal.Normal | tuple[torch.distributions.normal.Normal, torch.Tensor]:
         """
         Parameters
         ----------
@@ -162,15 +180,18 @@ class LatentEncoder(nn.Module):
         if k is not None:
             assert self._use_knowledge, "k is provided but use_knowledge is False"
         if self._use_knowledge:
-            assert k is not None, "use_knowledge is True but k is None"
-            # self.knowledge_aggregator(mean_repr, knowledge)
+            #assert k is not None, "use_knowledge is True but k is None"
+            mean_repr = self.knowledge_aggregator(mean_repr, k)
         
         latent_output = self.rho(mean_repr) # Shape (batch_size, 2*latent_dim)
 
         mean, pre_stddev = torch.chunk(latent_output, 2, dim=-1)
         stddev = 0.1 + 0.9*F.sigmoid(pre_stddev) # Shape (batch_size, latent_dim)
 
-        return Normal(mean, stddev) # Distribution q(z|x,y): Shape (batch_size, 1, latent_dim)
+        if self._return_mean_repr:
+            return Normal(mean, stddev), mean_repr
+        else:
+            return Normal(mean, stddev) # Distribution q(z|x,y): Shape (batch_size, 1, latent_dim)
 
 
 
@@ -251,9 +272,6 @@ class DeterminisitcEncoder(nn.Module):
 
             return determ_output # Shape (batch_size, determ_dim)
             
-        
-
-
 
 class Decoder(nn.Module):
     """
@@ -295,7 +313,6 @@ class Decoder(nn.Module):
                                 use_bias=use_bias,
                                 hidden_activation=nn.ReLU(),
                                 output_activation=nn.Identity())
-
 
     def forward(self,
                 x_target: torch.Tensor,
@@ -346,3 +363,111 @@ class Decoder(nn.Module):
         stddev = 0.1 + 0.9 * F.softplus(pre_stddev)
 
         return Normal(mean, stddev) # Shape (batch_size, num_target_points, y_dim)
+
+class KnowledgeEncoder(nn.Module):
+
+    def __init__(self,
+                 knowledge_dim: int,
+                 hidden_dim: int = 128,
+                 latent_dim: int = 128,
+                 n_h_layers_phi: int = 2,
+                 n_h_layers_rho: int = 2,
+                 only_use_linear: bool = False,
+                 use_bias: bool = True
+                 ) -> None:
+        super().__init__()
+
+        self._only_use_linear = only_use_linear
+
+        if only_use_linear:
+            self.linear = nn.Linear(knowledge_dim, hidden_dim, bias=use_bias)
+        
+        else: 
+            self.phi = BatchMLP(input_dim=knowledge_dim,
+                                output_dim=hidden_dim,
+                                hidden_dim=hidden_dim,
+                                n_h_layers=n_h_layers_phi,
+                                use_bias=use_bias,
+                                hidden_activation=nn.ReLU(),
+                                output_activation=nn.Identity())
+            
+            self.rho = BatchMLP(input_dim=hidden_dim,
+                                output_dim=hidden_dim,
+                                hidden_dim=hidden_dim,
+                                n_h_layers=n_h_layers_rho,
+                                use_bias=use_bias,
+                                hidden_activation=nn.ReLU(),
+                                output_activation=nn.Identity())
+        
+    def forward(self,
+                knowledge: torch.Tensor
+                ) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        knowledge : torch.Tensor
+            Shape (batch_size, num_knowledge_points, knowledge_dim)
+        
+        Returns
+        -------
+        k : torch.Tensor
+            Shape (batch_size, 1, hidden_dim) 
+            The aggregated knowledge representation
+        """
+        if self._only_use_linear:
+            k = self.linear(knowledge) # Shape (batch_size, 1, hidden_dim)
+            assert k.size(1) == 1
+        
+        else:
+            knowledge_encoded = self.phi(knowledge) # Shape (batch_size, num_knowledge_points, hidden_dim)
+
+            mean_repr = torch.mean(knowledge_encoded, dim=1, keepdim=True) # Shape (batch_size, 1, hidden_dim)
+
+            k = self.rho(mean_repr) # Shape (batch_size, 1, hidden_dim)
+
+        return k # Shape (batch_size, 1, hidden_dim)
+
+
+
+class KnowledgeDecoder(nn.Module):
+    """
+    Decoder
+    """
+    def __init__(self, 
+                 knowledge_dim: int, 
+                 hidden_dim: int = 128, 
+                 latent_dim: int = 128,
+                 determ_dim: int = 128,
+                 n_h_layers: int = 4,
+                 use_bias: bool = True
+                 ):
+
+        super().__init__()
+
+        self.knowledge_decoder = BatchMLP(input_dim=determ_dim,
+                                output_dim=knowledge_dim,
+                                hidden_dim=hidden_dim,
+                                n_h_layers=n_h_layers,
+                                use_bias=use_bias,
+                                hidden_activation=nn.ReLU(),
+                                output_activation=nn.Identity())
+
+    def forward(self,
+                r: torch.Tensor
+                ) -> torch.Tensor:
+        """
+        TODO
+        Parameters
+        ----------
+        r : torch.Tensor
+            Shape (batch_size, 1, determ_dim)
+        Returns
+        -------
+        k : torch.Tensor
+            Shape (batch_size, 1, knowledge_dim)
+        """
+        assert r.size(1) == 1
+        
+        decoder_output = self.knowledge_decoder(r) # Shape (batch_size, 1, knowledge_dim)
+
+        return decoder_output
