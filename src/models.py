@@ -48,8 +48,21 @@ class BatchMLP(nn.Module):
                                       output_activation=output_activation)
         self.mlp = nn.Sequential(*layers)
 
+        self._initialize_weights()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.mlp(x)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=0.01)
+            if module.bias is not None:
+                module.bias.data.zero_()
+
+    def _initialize_weights(self):
+        for module in self.mlp:
+            self._init_weights(module)
+
 
     @staticmethod
     def make_MLP_layers(input_dim: int,

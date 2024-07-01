@@ -79,6 +79,13 @@ class NeuralProcess(nn.Module):
                     use_bias=use_bias
         )
 
+        print("Neural Process model created")
+        # for modules in self.modules():
+        #     print(f"Module: {modules}")
+
+        for name, param in self.named_parameters():
+            print(name, param.size())
+
     def forward(self,
                 x_context: torch.Tensor,
                 y_context: torch.Tensor,
