@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
-
+from .attention_modules import MultiheadAttention, CrossAttention
 from typing import Callable
 
 def make_MLP(
@@ -138,7 +138,9 @@ class LatentEncoder(nn.Module):
                             hidden_activation=nn.ReLU(),
                             output_activation=nn.Identity())
         if use_self_attn:
-            pass
+            self.self_attention_block = MultiheadAttention(input_dim=hidden_dim,
+                                                           embed_dim=hidden_dim,
+                                                           num_heads=8)
 
         if use_knowledge:
             pass
@@ -185,9 +187,9 @@ class LatentEncoder(nn.Module):
         xy_encoded = self.phi(xy_input) # Shape (batch_size, num_points, hidden_dim)
         
         if self._use_self_attn:
-            pass
-        else:
-            mean_repr = torch.mean(xy_encoded, dim=1, keepdim=True) # Shape (batch_size, 1, hidden_dim)
+            xy_encoded = self.self_attention_block(xy_encoded) # Shape (batch_size, num_points, hidden_dim)
+        
+        mean_repr = torch.mean(xy_encoded, dim=1, keepdim=True) # Shape (batch_size, 1, hidden_dim)
 
         # Knowledge aggregation
         if k is not None:
@@ -249,13 +251,25 @@ class DeterminisitcEncoder(nn.Module):
                                 output_activation=nn.Identity())
         
         if use_cross_attn:
-            pass
+            self.cross_attention_block = CrossAttention(query_dim=hidden_dim,
+                                                        key_dim=hidden_dim,
+                                                        value_dim=hidden_dim,
+                                                        embed_dim=hidden_dim,
+                                                        num_heads=8)
+            self.x_to_querykey = BatchMLP(input_dim=x_dim,
+                                          output_dim=hidden_dim,
+                                          hidden_dim=hidden_dim,
+                                          n_h_layers=2,
+                                          use_bias=use_bias,
+                                          hidden_activation=nn.ReLU(),
+                                          output_activation=nn.Identity())
         if use_self_attn:
             pass
         
     def forward(self,
-                x: torch.Tensor,
-                y: torch.Tensor
+                x_context: torch.Tensor,
+                y_context: torch.Tensor,
+                x_target: torch.Tensor | None = None,
                 ) -> torch.Tensor:
         """
         Parameters
@@ -270,20 +284,28 @@ class DeterminisitcEncoder(nn.Module):
             Shape (batch_size, determ_dim)
         """
         
-        xy_input = torch.cat((x, y), dim=2)
+        xy_input = torch.cat((x_context, y_context), dim=2)
 
-        xy_encoded = self.phi(xy_input) # Shape (batch_size, num_points, hidden_dim)
+        xy_encoded = self.phi(xy_input) # Shape (batch_size, num_points[context], hidden_dim)
 
         if self._use_self_attn:
             pass
 
         if self._use_cross_attn:
-            pass
+            query = self.x_to_querykey(x_target) # Shape (batch_size, num_target_points, hidden_dim)
+            key = self.x_to_querykey(x_context) # Shape (batch_size, num_context_points, hidden_dim)
+            value = xy_encoded # Shape (batch_size, num_context_points, hidden_dim)
+
+            determ_output = self.cross_attention_block(query, key, value) # Shape (batch_size, num_target_points, hidden_dim)
+            assert determ_output.size(1) == x_target.size(1)
+            return determ_output
+            
         else:
             mean_repr = torch.mean(xy_encoded, dim=1, keepdim=True) # Shape (batch_size, 1, hidden_dim)
             determ_output = self.rho(mean_repr)
+            assert determ_output.size(1) == 1
 
-            return determ_output # Shape (batch_size, determ_dim)
+            return determ_output # Shape (batch_size, 1, determ_dim)
             
 
 class Decoder(nn.Module):

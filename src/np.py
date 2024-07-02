@@ -25,11 +25,16 @@ class NeuralProcess(nn.Module):
                  use_bias: bool = True,
                  user_context_in_target: bool = True, # TODO investigate
                  use_knowledge: bool = False,
-                 use_linear_knowledge_encoder=False
+                 use_linear_knowledge_encoder=False,
+                 use_latent_self_attn: bool = False,
+                 use_determ_self_attn: bool = False,
+                 use_determ_cross_attn: bool = False
                  ) -> None:
         super().__init__() 
 
         self._use_deterministic_path = use_deterministic_path
+        self._use_determ_cross_attn = use_determ_cross_attn
+        assert not (use_determ_cross_attn and not use_deterministic_path), "use_determ_cross_attn requires use_deterministic_path to be True"
         self._use_knowledge = use_knowledge
         self._knowledge_dim = knowledge_dim
 
@@ -41,8 +46,8 @@ class NeuralProcess(nn.Module):
                     determ_dim=determ_dim,
                     n_h_layers_phi=n_h_layers_phi_determ_encoder,
                     n_h_layers_rho=n_h_layers_rho_determ_encoder,
-                    use_cross_attn=False,
-                    use_self_attn=False,
+                    use_cross_attn=use_determ_cross_attn,
+                    use_self_attn=use_determ_self_attn,
                     use_bias = use_bias
             )
         
@@ -64,7 +69,7 @@ class NeuralProcess(nn.Module):
                     latent_dim=latent_dim,
                     n_h_layers_phi=n_h_layers_phi_latent_encoder,
                     n_h_layers_rho=n_h_layers_rho_latent_encoder,
-                    use_self_attn=False,
+                    use_self_attn=use_latent_self_attn,
                     use_knowledge=use_knowledge,
                     use_bias=use_bias
         )
@@ -76,15 +81,16 @@ class NeuralProcess(nn.Module):
                     latent_dim=latent_dim,
                     determ_dim=determ_dim,
                     n_h_layers=n_h_layers_decoder,
+                    use_deterministic_path=use_deterministic_path,
                     use_bias=use_bias
         )
 
-        print("Neural Process model created")
+        # print("Neural Process model created")
         # for modules in self.modules():
         #     print(f"Module: {modules}")
 
-        for name, param in self.named_parameters():
-            print(name, param.size())
+        # for name, param in self.named_parameters():
+        #     print(name, param.size())
 
     def forward(self,
                 x_context: torch.Tensor,
@@ -95,7 +101,10 @@ class NeuralProcess(nn.Module):
                 ):
 
         if self._use_deterministic_path:
-            r_context = self.deterministic_encoder(x_context, y_context)
+            if self._use_determ_cross_attn:
+                r_context = self.deterministic_encoder(x_context, y_context, x_target) # Shape (batch_size, num_target_points, hidden_dim)
+            else:
+                r_context = self.deterministic_encoder(x_context, y_context) # Shape (batch_size, 1, hidden_dim)
         else:
             r_context = None
 
