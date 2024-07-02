@@ -55,7 +55,7 @@ class BatchMLP(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=0.01)
+            module.weight.data.normal_(mean=0.0, std=0.05)
             if module.bias is not None:
                 module.bias.data.zero_()
 

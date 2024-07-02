@@ -123,13 +123,13 @@ class NeuralProcess(nn.Module):
 
             p_y_pred = self.decoder(x_target=x_target,z=z,r=r_context)
             
-            loss, log_p = self.calculate_loss(pred_dist=p_y_pred,
+            loss, log_lik = self.calculate_loss(pred_dist=p_y_pred,
                                               y_target=y_target,
                                               posterior=z_post_dist,
                                               prior=z_prior_dist)
             #loss = self._loss(p_y_pred, y_target, z_post_dist, z_prior_dist)
 
-            return p_y_pred, loss
+            return p_y_pred, loss, log_lik
 
         else: 
             z = z_prior_dist.rsample()
@@ -147,14 +147,14 @@ class NeuralProcess(nn.Module):
                       ):
 
         batch_size, num_targets, _ = y_target.shape
-        log_p = pred_dist.log_prob(y_target).sum(-1) # Shape (batch_size, num_targets)
+        log_lik = pred_dist.log_prob(y_target).sum(-1) # Shape (batch_size, num_targets)
         # assert log_p.shape[-1] == 1
         # log_p = log_p.squeeze(-1)
 
         kl_div = torch.sum(kl_divergence(posterior, prior), dim=-1, keepdim=True) # Shape (batch_size, 1)
 
-        loss = -torch.mean(log_p - kl_div / num_targets)
-        return loss, log_p
+        loss = -torch.mean(log_lik - kl_div / num_targets)
+        return loss, log_lik
     
     def _loss(self, p_y_pred, y_target, q_target, q_context):
             """
