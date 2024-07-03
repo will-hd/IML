@@ -20,6 +20,7 @@ class GPData(DataGenerator):
                  sigma_scale: float = 1.0,
                  sigma_noise: float = 2e-2,
                  random_kernel_parameters: bool = True,
+                 device: torch.device = torch.device('cuda:0')
                  ):
 
         self.max_num_context = max_num_context
@@ -30,6 +31,7 @@ class GPData(DataGenerator):
         self.sigma_scale = sigma_scale
         self.sigma_noise = sigma_noise
         self.random_kernel_parameters = random_kernel_parameters
+        self.device = device
 
     def _gaussian_kernel(self, xdata, l1, sigma_f, jitter=1e-9):
         num_total_points = xdata.shape[1]
@@ -49,7 +51,7 @@ class GPData(DataGenerator):
         norm = torch.sum(norm, -1)
 
         kernel = sigma_f[:, :, None, None]**2 * torch.exp(-0.5 * norm)
-        kernel += jitter * torch.eye(num_total_points, dtype=torch.double).expand(kernel.shape) 
+        kernel += jitter * torch.eye(num_total_points, dtype=torch.double, device=self.device).expand(kernel.shape) 
 
         #kernel += (self.sigma_noise**2) * torch.eye(
         #        num_total_points).expand(kernel.shape)
@@ -60,9 +62,9 @@ class GPData(DataGenerator):
                        batch_size: int,
                        testing: bool = False,
                        override_num_context: int | None = None,
-                       device: torch.device = torch.device('cpu')
                        ) -> NPRegressionDescription:
         #num_context = torch.randint(
+       
         num_context = np.random.randint(low=3, high=self.max_num_context)
         if override_num_context is not None:
             num_context = override_num_context
@@ -71,32 +73,31 @@ class GPData(DataGenerator):
             num_target = self.num_points
             num_total_points = num_target
             x_values = torch.linspace(
-                -2, 2, steps=self.num_points).repeat(
+                -2, 2, steps=self.num_points, device=self.device).repeat(
                 batch_size, 1).unsqueeze(-1)
         else:
             num_target = np.random.randint(low=0, high=self.max_num_context - num_context)
             #num_target = np.random.randint(low=1, high=100 - num_context)
             num_total_points = num_context + num_target
             x_values = torch.rand(
-                batch_size, num_total_points, self.x_size) * 4 - 2
+                batch_size, num_total_points, self.x_size, device=self.device) * 4 - 2
 
         if self.random_kernel_parameters:
             l1 = torch.rand(
-                batch_size, self.y_size, self.x_size) * (
+                batch_size, self.y_size, self.x_size, device=self.device) * (
                 self.l1_scale - 0.1) + 0.1
             sigma_f = torch.rand(
-                batch_size, self.y_size) * (
+                batch_size, self.y_size, device=self.device) * (
                 self.sigma_scale - 0.1) + 0.1
         else:
             l1 = torch.ones(
-                batch_size, self.y_size, self.x_size) * self.l1_scale
+                batch_size, self.y_size, self.x_size, device=self.device) * self.l1_scale
             sigma_f = torch.ones(
-                batch_size, self.y_size) * self.sigma_scale
+                batch_size, self.y_size, device=self.device) * self.sigma_scale
 
         jitter = 1e-9
-        try: 
+        try:
             kernel = self._gaussian_kernel(x_values, l1, sigma_f, jitter=jitter)
-
             cholesky = torch.linalg.cholesky(kernel.double()).float()
         except Exception:
             jitter = 1e-8
@@ -109,7 +110,7 @@ class GPData(DataGenerator):
 
         y_values = torch.matmul(
             cholesky, 
-            Normal(0, 1).sample(
+            Normal(torch.tensor(0.0).to(self.device), torch.tensor(1.0).to(self.device)).sample(
                 [batch_size, self.y_size, num_total_points, 1]
             )
         )
@@ -119,7 +120,7 @@ class GPData(DataGenerator):
             x_target = x_values
             y_target = y_values
 
-            idx = torch.randperm(num_target)
+            idx = torch.randperm(num_target, device=self.device)
             x_context = x_values[:, idx[:num_context], :]
             y_context = y_values[:, idx[:num_context], :]
         else:
@@ -130,10 +131,10 @@ class GPData(DataGenerator):
             y_context = y_values[:, :num_context, :]
 
         return NPRegressionDescription(
-            x_context=x_context.to(device),
-            y_context=y_context.to(device),
-            x_target=x_target.to(device),
-            y_target=y_target.to(device),
+            x_context=x_context,
+            y_context=y_context,
+            x_target=x_target,
+            y_target=y_target,
             num_total_points=x_target.shape[1],
             num_context_points=num_context)
         
