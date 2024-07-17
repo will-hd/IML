@@ -96,7 +96,8 @@ class CrossAttention(nn.Module):
                  query_dim: int,
                  key_dim: int,
                  value_dim: int,
-                 embed_dim: int, # = out_dim
+                 embed_dim: int,
+                 output_dim: int,
                  num_heads: int
                  ):
         super().__init__()
@@ -109,7 +110,7 @@ class CrossAttention(nn.Module):
         self.k_proj = nn.Linear(key_dim, embed_dim)
         self.v_proj = nn.Linear(value_dim, embed_dim)
 
-        self.o_proj = nn.Linear(embed_dim, embed_dim)
+        self.o_proj = nn.Linear(embed_dim, output_dim)
 
     def _reset_parameters(self):
         # Original Transformer initialization, see PyTorch documentation

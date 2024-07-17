@@ -4,8 +4,15 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.distributions.kl import kl_divergence
 
-from .mlp import MLP
+from .mlp import BatchMLP
 from .models import LatentEncoder, DeterminisitcEncoder, Decoder, KnowledgeEncoder
+
+from typing import Literal
+
+def sum_log_prob(dist, target):
+    # assert len(dist.batch_shape) == 3
+    
+    return dist.log_prob(target).sum(dim=(-1)) 
 
 class NeuralProcess(nn.Module):
 
@@ -26,6 +33,7 @@ class NeuralProcess(nn.Module):
                  user_context_in_target: bool = True, # TODO investigate
                  use_knowledge: bool = False,
                  use_linear_knowledge_encoder=False,
+                 knowledge_aggregation_method: Literal['sum+MLP', 'FiLM+MLP'] = 'FiLM+MLP',
                  use_latent_self_attn: bool = False,
                  use_determ_self_attn: bool = False,
                  use_determ_cross_attn: bool = False
@@ -71,6 +79,7 @@ class NeuralProcess(nn.Module):
                     n_h_layers_rho=n_h_layers_rho_latent_encoder,
                     use_self_attn=use_latent_self_attn,
                     use_knowledge=use_knowledge,
+                    knowledge_aggregation_method=knowledge_aggregation_method,
                     use_bias=use_bias
         )
 
@@ -91,6 +100,8 @@ class NeuralProcess(nn.Module):
 
         # for name, param in self.named_parameters():
         #     print(name, param.size())
+        self.beta = 1
+
 
     def forward(self,
                 x_context: torch.Tensor,
@@ -128,8 +139,9 @@ class NeuralProcess(nn.Module):
                                               posterior=z_post_dist,
                                               prior=z_prior_dist)
             #loss = self._loss(p_y_pred, y_target, z_post_dist, z_prior_dist)
-
-            return p_y_pred, loss, log_lik
+            loss, kl_z, negative_ll = self.get_loss(p_y_pred, z_prior_dist, z_post_dist, y_target)
+            
+            return p_y_pred, loss, -negative_ll
 
         else: 
             z = z_prior_dist.rsample()
@@ -182,6 +194,46 @@ class NeuralProcess(nn.Module):
             kl = kl_divergence(q_target, q_context).mean(dim=0).sum()
             return -log_likelihood + kl
 
+    def get_loss(self, p_yCc, q_zCc, q_zCct, y_target):
+        """
+        Compute the ELBO loss during training and NLLL for validation and testing
+        """
+        # print(type(p_yCc))
+        # print(p_yCc.batch_shape, p_yCc.event_shape) 
+        # Batch shape [num_z_samples, batch_size, num_target_points]
+        # Event shape [y_dim (1)]
+        
+        # print(y_target.shape) # Shape [batch_size, num_target_points, y_dim]
+        # print(z_samples.shape) # Shape
+        if q_zCct is not None:
+            # 1st term: E_{q(z | T)}[p(y_t | z)]
+            # print(y_target.shape)
+            # print(p_yCc.event_shape, p_yCc.batch_shape)
+            E_z_sum_log_p_yCz = sum_log_prob(
+                p_yCc, y_target
+            )  # [batch_size]
+            # print(E_z_sum_log_p_yCz.shape)
+            # E_z_sum_log_p_yCz = torch.mean(sum_log_p_yCz, dim=0)  # [batch_size]
+            # 2nd term: KL[q(z | C, T) || q (z || C)]
+            kl_z = torch.distributions.kl.kl_divergence(
+                q_zCct, q_zCc
+            )  # [batch_size, *n_lat]
+            E_z_kl = torch.sum(kl_z, dim=1)  # [batch_size]
+            # print(E_z_kl.shape)
+            loss = -(E_z_sum_log_p_yCz - self.beta * E_z_kl)
+            negative_ll = -E_z_sum_log_p_yCz
+
+        else:
+            sum_log_p_yCz = sum_log_prob(p_yCc, y_target)
+            sum_log_w_k = sum_log_p_yCz
+            log_S_z_sum_p_y_Cz = torch.logsumexp(sum_log_w_k, 0)
+            log_E_z_sum_p_yCz = log_S_z_sum_p_y_Cz - math.log(sum_log_w_k.shape[0])
+            kl_z = None
+            negative_ll = -log_E_z_sum_p_yCz
+            loss = negative_ll
+
+        return loss.mean(), kl_z.mean(), negative_ll.mean()
+    
     @property
     def device(self):
         return next(self.parameters()).device

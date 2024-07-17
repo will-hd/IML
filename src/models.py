@@ -2,91 +2,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
+from torch.distributions.independent import Independent
 from .attention_modules import MultiheadAttention, CrossAttention
 from typing import Callable
+from .mlp import BatchMLP
+from .FiLM import FiLM_MLP
 
-def make_MLP(
-             input_dim: int,
-             output_dim: int,
-             hidden_dim: int,
-             n_h_layers: int, # number of hidden layers
-             use_bias: bool,
-             hidden_activation: Callable,
-             output_activation: Callable
-             ) -> list[nn.Module]:
-    h = [hidden_dim] * (n_h_layers)
+from typing import Literal
 
-    layers = []
-    for i, (n, m) in enumerate(zip([input_dim] + h, h + [output_dim])):
-        layers.append(nn.Linear(n, m, bias=use_bias))
-        if i != n_h_layers:
-            layers.append(hidden_activation)
-        else:
-            layers.append(output_activation)
-
-    return layers
-
-class BatchMLP(nn.Module):
-
-    def __init__(self,
-                 input_dim: int,
-                 output_dim: int,
-                 hidden_dim: int,
-                 n_h_layers: int,
-                 use_bias: bool,
-                 hidden_activation: Callable,
-                 output_activation: Callable
-                 ) -> None:
-        super().__init__()
-        
-        layers = self.make_MLP_layers(input_dim=input_dim,
-                                      output_dim=output_dim,
-                                      hidden_dim=hidden_dim,
-                                      n_h_layers=n_h_layers,
-                                      use_bias=use_bias,
-                                      hidden_activation=hidden_activation,
-                                      output_activation=output_activation)
-        self.mlp = nn.Sequential(*layers)
-
-        self._initialize_weights()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.mlp(x)
-
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=0.01)
-            if module.bias is not None:
-                module.bias.data.zero_()
-
-    def _initialize_weights(self):
-        for module in self.mlp:
-            self._init_weights(module)
-
-
-    @staticmethod
-    def make_MLP_layers(input_dim: int,
-                 output_dim: int,
-                 hidden_dim: int,
-                 n_h_layers: int, # number of hidden layers
-                 use_bias: bool,
-                 hidden_activation: Callable,
-                 output_activation: Callable
-                 ) -> list[nn.Module]:
-
-        h = [hidden_dim] * (n_h_layers)
-
-        layers = []
-        for i, (n, m) in enumerate(zip([input_dim] + h, h + [output_dim])):
-            layers.append(nn.Linear(n, m, bias=use_bias))
-            if i != n_h_layers:
-                layers.append(hidden_activation)
-            else:
-                layers.append(output_activation)
-
-        return layers
-
-
+def MultivariateNormalDiag(loc, scale_diag):
+    """Multi variate Gaussian with a diagonal covariance function (on the last dimension)."""
+    if loc.dim() < 1:
+        raise ValueError("loc must be at least one-dimensional.")
+    return Independent(Normal(loc, scale_diag), 1)
 
 class LatentEncoder(nn.Module):
     """
@@ -103,7 +31,8 @@ class LatentEncoder(nn.Module):
                  use_self_attn: bool = False,
                  use_knowledge: bool = False,
                  use_bias: bool = True,
-                 return_mean_repr: bool = False
+                 return_mean_repr: bool = False,
+                 knowledge_aggregation_method: Literal['sum+MLP', 'FiLM+MLP'] | None = 'FiLM+MLP'
 #                 self_attention_type="dot",
 #                 n_encoder_layers=3,
 #                 min_std=0.01,
@@ -121,22 +50,34 @@ class LatentEncoder(nn.Module):
         self._use_self_attn = use_self_attn
         self._use_knowledge = use_knowledge
         self._return_mean_repr = return_mean_repr
+        self._knowledge_aggregation_method = knowledge_aggregation_method
 
         self.phi = BatchMLP(input_dim=x_dim+y_dim,
                             output_dim=hidden_dim,
                             hidden_dim=hidden_dim,
                             n_h_layers=n_h_layers_phi,
                             use_bias=use_bias,
-                            hidden_activation=nn.ReLU(),
+                            hidden_activation=nn.GELU(),
                             output_activation=nn.Identity())
         
-        self.rho = BatchMLP(input_dim=hidden_dim,
-                            output_dim=2*latent_dim,
-                            hidden_dim=hidden_dim,
-                            n_h_layers=n_h_layers_rho,
-                            use_bias=use_bias,
-                            hidden_activation=nn.ReLU(),
-                            output_activation=nn.Identity())
+        if knowledge_aggregation_method == 'FiLM+MLP':
+            self.rho = FiLM_MLP(x_input_dim=hidden_dim,
+                                k_input_dim=hidden_dim,
+                                output_dim=2*latent_dim,
+                                hidden_dim=hidden_dim,
+                                n_h_layers=n_h_layers_rho,
+                                use_bias=use_bias,
+                                hidden_activation=nn.GELU(),
+                                output_activation=nn.Identity())
+                
+        else:
+            self.rho = BatchMLP(input_dim=hidden_dim,
+                                output_dim=2*latent_dim,
+                                hidden_dim=hidden_dim,
+                                n_h_layers=n_h_layers_rho,
+                                use_bias=use_bias,
+                                hidden_activation=nn.GELU(),
+                                output_activation=nn.Identity())
         if use_self_attn:
             self.self_attention_block = MultiheadAttention(input_dim=hidden_dim,
                                                            embed_dim=hidden_dim,
@@ -149,17 +90,22 @@ class LatentEncoder(nn.Module):
 #                                    hidden_dim=hidden_dim,
 #                                    n_h_layers=2,
 #                                    use_bias=use_bias,
-#                                    hidden_activation=nn.ReLU(),
+#                                    hidden_activation=nn.GELU(),
 #                                    output_activation=nn.Identity())
 
     def knowledge_aggregator(self,
                              context_repr: torch.Tensor,
-                             knowledge_repr: torch.Tensor
+                             knowledge_repr: torch.Tensor,
                              ) -> torch.Tensor:
 
-        if knowledge_repr is not None: 
-            return context_repr + knowledge_repr
+        if knowledge_repr is not None:
+            assert self._knowledge_aggregation_method in ['sum+MLP', 'FiLM+MLP', None], "Knowledge aggregation method must be one of ['sum+MLP', 'FiLM+MLP', None]"
+            if self._knowledge_aggregation_method == 'FiLM+MLP':
+                return self.rho(x=context_repr, film_input=knowledge_repr)
+            elif self._knowledge_aggregation_method == 'sum+MLP':
+                return self.rho(context_repr + knowledge_repr)
         else:
+            assert self._use_knowledge == False, 'Must provided knowledge if using knowledge'
             return context_repr
 
         
@@ -196,17 +142,17 @@ class LatentEncoder(nn.Module):
             assert self._use_knowledge, "k is provided but use_knowledge is False"
         if self._use_knowledge:
             #assert k is not None, "use_knowledge is True but k is None"
-            mean_repr = self.knowledge_aggregator(mean_repr, k)
-        
-        latent_output = self.rho(mean_repr) # Shape (batch_size, 2*latent_dim)
-
+            latent_output = self.knowledge_aggregator(mean_repr, k) # Shape (batch_size, 2*latent_dim)
+        else:
+            latent_output = self.rho(mean_repr) # Shape (batch_size, 2*latent_dim)
+            
         mean, pre_stddev = torch.chunk(latent_output, 2, dim=-1)
         stddev = 0.1 + 0.9*F.sigmoid(pre_stddev) # Shape (batch_size, latent_dim)
 
         if self._return_mean_repr:
-            return Normal(mean, stddev), mean_repr
+            return MultivariateNormalDiag(mean, stddev), mean_repr
         else:
-            return Normal(mean, stddev) # Distribution q(z|x,y): Shape (batch_size, 1, latent_dim)
+            return MultivariateNormalDiag(mean, stddev) # Distribution q(z|x,y): Shape (batch_size, 1, latent_dim)
 
 
 
@@ -236,7 +182,7 @@ class DeterminisitcEncoder(nn.Module):
                             hidden_dim=hidden_dim,
                             n_h_layers=n_h_layers_phi,
                             use_bias=use_bias,
-                            hidden_activation=nn.ReLU(),
+                            hidden_activation=nn.GELU(),
                             output_activation=nn.Identity())
 
         if n_h_layers_rho == 0:
@@ -247,7 +193,7 @@ class DeterminisitcEncoder(nn.Module):
                                 hidden_dim=hidden_dim,
                                 n_h_layers=n_h_layers_rho,
                                 use_bias=use_bias,
-                                hidden_activation=nn.ReLU(),
+                                hidden_activation=nn.GELU(),
                                 output_activation=nn.Identity())
         
         if use_cross_attn:
@@ -255,13 +201,14 @@ class DeterminisitcEncoder(nn.Module):
                                                         key_dim=hidden_dim,
                                                         value_dim=hidden_dim,
                                                         embed_dim=hidden_dim,
+                                                        output_dim=determ_dim,
                                                         num_heads=8)
             self.x_to_querykey = BatchMLP(input_dim=x_dim,
                                           output_dim=hidden_dim,
                                           hidden_dim=hidden_dim,
                                           n_h_layers=2,
                                           use_bias=use_bias,
-                                          hidden_activation=nn.ReLU(),
+                                          hidden_activation=nn.GELU(),
                                           output_activation=nn.Identity())
         if use_self_attn:
             pass
@@ -346,7 +293,7 @@ class Decoder(nn.Module):
                                 hidden_dim=hidden_dim,
                                 n_h_layers=n_h_layers,
                                 use_bias=use_bias,
-                                hidden_activation=nn.ReLU(),
+                                hidden_activation=nn.GELU(),
                                 output_activation=nn.Identity())
 
     def forward(self,
@@ -391,13 +338,13 @@ class Decoder(nn.Module):
         else:
             assert r is None, "use_deterministic_path is False but r IS PROVIDED"
             decoder_input = torch.cat((x, z), dim=2)
-        
+
         decoder_output = self.decoder(decoder_input) # Shape (batch_size, num_target_points, 2*y_dim)
 
         mean, pre_stddev = torch.chunk(decoder_output, 2, dim=-1)
         stddev = 0.1 + 0.9 * F.softplus(pre_stddev)
 
-        return Normal(mean, stddev) # Shape (batch_size, num_target_points, y_dim)
+        return MultivariateNormalDiag(mean, stddev) # Shape (batch_size, num_target_points, y_dim)
 
 class KnowledgeEncoder(nn.Module):
 
@@ -423,7 +370,7 @@ class KnowledgeEncoder(nn.Module):
                                 hidden_dim=hidden_dim,
                                 n_h_layers=n_h_layers_phi,
                                 use_bias=use_bias,
-                                hidden_activation=nn.ReLU(),
+                                hidden_activation=nn.GELU(),
                                 output_activation=nn.Identity())
             
             self.rho = BatchMLP(input_dim=hidden_dim,
@@ -431,7 +378,7 @@ class KnowledgeEncoder(nn.Module):
                                 hidden_dim=hidden_dim,
                                 n_h_layers=n_h_layers_rho,
                                 use_bias=use_bias,
-                                hidden_activation=nn.ReLU(),
+                                hidden_activation=nn.GELU(),
                                 output_activation=nn.Identity())
         
     def forward(self,
@@ -484,7 +431,7 @@ class KnowledgeDecoder(nn.Module):
                                 hidden_dim=hidden_dim,
                                 n_h_layers=n_h_layers,
                                 use_bias=use_bias,
-                                hidden_activation=nn.ReLU(),
+                                hidden_activation=nn.GELU(),
                                 output_activation=nn.Identity())
 
     def forward(self,

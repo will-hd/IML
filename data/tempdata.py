@@ -13,14 +13,16 @@ class TempData:
         self.data = data
         self.max_num_context = max_num_context
         x_values = data.iloc[0][3:].values.astype('float32')
-        print(x_values)
+        # print(x_values)
         self.x_values = torch.from_numpy(x_values).unsqueeze(0).to(device)  # Shape: [1, num_points]
         self.y_values_train = torch.tensor(data.iloc[1:508, 3:].values).float().to(device)  # Shape: [num_samples, num_points]
         self.y_values_val = torch.tensor(data.iloc[619:, 3:].values).float().to(device)  # Shape: [num_samples, num_points]
-        self.y_desc = data.iloc[1:508, 2].values
+        self.y_desc_train = data.iloc[1:508, 2].values
+        self.y_desc_val = data.iloc[619:, 2].values
 
     def generate_batch(self, 
-                       batch_size: int, 
+                       batch_size: int,
+                       training: bool = True,
                        device: torch.device = torch.device('cpu'),
                        return_knowledge: bool = False
                        ) -> NPRegressionDescription:
@@ -28,12 +30,19 @@ class TempData:
         num_context = np.random.randint(low=3, high=self.max_num_context)
         num_target = num_total_points  # Using all points as target
 
-        # Randomly select rows excluding the zeroth row
-        selected_indices = np.random.choice(self.y_values_train.size(0), batch_size, replace=False)
-        selected_y_values = self.y_values_train[selected_indices]  # Shape: [batch_size, num_points]
+        if training:
+            selected_indices = np.random.choice(self.y_values_train.size(0), batch_size, replace=False)
+            selected_y_values = self.y_values_train[selected_indices]  # Shape: [batch_size, num_points]
 
+            knowledge = self.y_desc_train[selected_indices]
+        else:
+            selected_indices = np.random.choice(self.y_values_val.size(0), batch_size, replace=False)
+            selected_y_values = self.y_values_val[selected_indices]  # Shape: [batch_size, num_points]
+
+            knowledge = self.y_desc_val[selected_indices]
+        
         # Split into context and target sets
-        context_indices = np.random.choice(num_total_points, num_context, replace=False)
+        context_indices = np.random.choice(num_total_points // 2, num_context, replace=False)
 
         x_context = self.x_values[:, context_indices].repeat(batch_size, 1)  # Shape: [batch_size, num_context]
         y_context = selected_y_values[:, context_indices]  # Shape: [batch_size, num_context]
@@ -42,7 +51,7 @@ class TempData:
         y_target = selected_y_values  # Shape: [batch_size, num_target]
 
         if return_knowledge:
-            knowledge = self.y_desc[selected_indices]
+            
             return NPRegressionDescription(
                 x_context=x_context.unsqueeze(-1).to(device),  # Shape: [batch_size, num_context, x_size]
                 y_context=y_context.unsqueeze(-1).to(device),  # Shape: [batch_size, num_context, y_size]
