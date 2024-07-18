@@ -14,7 +14,7 @@ class INP(nn.Module):
         self.xy_encoder = XYEncoder(config)
         if config.path in ['deterministic', 'both']:
             self.deter_xy_encoder = XYEncoder(config)
-        self.latent_encoder =  LatentEncoder(config) # ModulatedLatentEncoder(config)
+        self.latent_encoder =  ModulatedLatentEncoder(config) # LatentEncoder(config) # 
         self.decoder = Decoder(config)
         self.x_encoder = XEncoder(config)
         self.train_num_z_samples = config.train_num_z_samples
