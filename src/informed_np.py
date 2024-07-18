@@ -5,12 +5,12 @@ from torch.distributions import Independent
 from torch.distributions.kl import kl_divergence
 import math
 
-from modules.mlp import MLP
-from modules.xy_encoders import XEncoder, XYSetEncoder
-from modules.latent_encoder import FiLMLatentEncoder
-from modules.decoder import Decoder
-from modules.deterministic_encoder import DeterminisitcEncoder
-from modules.knowledge_encoder import RoBERTaKnowledgeEncoder
+from src.modules.mlp import MLP
+from src.modules.xy_encoders import XEncoder, XYSetEncoder
+from src.modules.latent_encoder import FiLMLatentEncoder
+from src.modules.decoder import Decoder
+from src.modules.deterministic_encoder import DeterminisitcEncoder
+from src.modules.knowledge_encoder import RoBERTaKnowledgeEncoder
 
 import logging
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class InformedNeuralProcess(nn.Module):
                  use_determ_cross_attn: bool = False,
                  use_knowledge: bool = True,
                  knowledge_dropout: float = 0.3,
-                 return_cls: bool = True,
+                 roberta_return_cls: bool = True,
                  tune_llm_layer_norms: bool = True,
                  freeze_llm: bool = True,
                  knowledge_projection_n_h_layers: int = 0,
@@ -102,7 +102,7 @@ class InformedNeuralProcess(nn.Module):
         if use_knowledge:
             self.knowledge_encoder = RoBERTaKnowledgeEncoder(
                 knowledge_dim=knowledge_dim,
-                return_cls=return_cls,
+                return_cls=roberta_return_cls,
                 tune_llm_layer_norms=tune_llm_layer_norms,
                 freeze_llm=freeze_llm,
                 knowledge_projection_n_h_layers=knowledge_projection_n_h_layers,
@@ -158,8 +158,6 @@ class InformedNeuralProcess(nn.Module):
 
         # Encode context set
         r_context = self.xy_encoder_latent(x_context, y_context) # Shape (batch_size, 1, hidden_dim)
-        logging.debug(f'r_context shape: {r_context.shape}')
-        logging.debug(f'k shape: {k.shape}')
         q_z_context = self.latent_encoder(r_context, k)
 
 
@@ -171,7 +169,6 @@ class InformedNeuralProcess(nn.Module):
             q_z_target = self.latent_encoder(r_target, k)  # batch_shape (batch_size, 1), event_shape (latent_dim) 
 
             z_samples = q_z_target.rsample([self._train_num_z_samples])  # Shape (num_z_samples, batch_size, 1, latent_dim)
-            logging.debug(f'z_samples shape: {z_samples.shape}')
 
             p_y_pred = self.decoder(x_target=x_target, z_samples=z_samples, r=None)  # batch_shape (num_z_samples, batch_size, num_target_points), event_shape (y_dim)
             

@@ -74,19 +74,14 @@ class FiLMLatentEncoder(nn.Module):
         else:
             # Note: Kasia's code uses r and k in params generator....
             FiLM_params = self.FiLM_params_generator(k)  # Shape (batch_size, 1, 2*hidden_dim*n_h_layers)
-            logging.debug(f'FiLM_params={FiLM_params.size()}')
             FiLM_params = torch.split(FiLM_params, 2*self.hidden_dim, dim=-1)
-            logging.debug(f'len FiLM_params={len(FiLM_params)}')
 
             assert len(FiLM_params) == len(self.FiLM_blocks), "Number of FiLM params and FiLM blocks must be the same"
             for block, gamma_beta in zip(self.FiLM_blocks, FiLM_params):
                 gamma, beta = torch.split(gamma_beta, self.hidden_dim, dim=-1) 
-                logging.debug(f'gamma={gamma.size()} beta={beta.size()}')
                 out = block(out, gamma, beta)
-                logging.debug(f'out={out.size()}')
         
         latent_output = self.output_layer(out) # Shape (batch_size, 1, 2*latent_dim)
-        logging.debug(f'latent_output={latent_output.size()}')
 #        # Knowledge aggregation
 #        if k is not None:
 #            assert self._use_knowledge, "k is provided but use_knowledge is False"
