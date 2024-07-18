@@ -136,6 +136,7 @@ class InformedNeuralProcess(nn.Module):
                     determ_dim=determ_dim,
                     n_h_layers=n_h_layers_decoder,
                     path=path,
+                    activation=mlps_activation,
                     use_bias=use_bias
         )
 
