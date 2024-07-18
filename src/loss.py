@@ -61,6 +61,7 @@ class ELBOLoss(nn.Module):
             kl_z = torch.distributions.kl.kl_divergence(
                 q_zCct, q_zCc
             )  # [batch_size, *n_lat]
+            print(kl_z.shape)
             E_z_kl = torch.sum(kl_z, dim=1)  # [batch_size]
             loss = -(E_z_sum_log_p_yCz - self.beta * E_z_kl)
             negative_ll = -E_z_sum_log_p_yCz

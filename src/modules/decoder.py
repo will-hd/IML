@@ -21,6 +21,7 @@ class Decoder(nn.Module):
                  determ_dim: int,
                  n_h_layers: int,
                  path: Literal['latent', 'deterministic', 'both'],
+                 activation: nn.Module,
                  use_bias: bool
                  ):
 
@@ -40,7 +41,7 @@ class Decoder(nn.Module):
                                 hidden_dim=hidden_dim,
                                 n_h_layers=n_h_layers,
                                 use_bias=use_bias,
-                                hidden_activation=nn.GELU())
+                                hidden_activation=activation)
 
     def forward(self,
                 x_target: torch.Tensor,

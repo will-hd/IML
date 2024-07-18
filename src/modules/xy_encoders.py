@@ -41,6 +41,7 @@ class XYSetEncoder(nn.Module):
                  use_self_attn: bool,
                  n_self_attn_heads: int | None,
                  set_agg_function: Literal['mean'],
+                 activation: nn.Module,
                  use_bias: bool,
                  x_target: None = None,
                  ):
@@ -65,7 +66,7 @@ class XYSetEncoder(nn.Module):
                             hidden_dim=hidden_dim,
                             n_h_layers=n_h_layers_phi,
                             use_bias=use_bias,
-                            hidden_activation=nn.GELU())
+                            hidden_activation=activation)
 
         if use_self_attn:
             assert n_self_attn_heads is not None, "n_self_attn_heads must be provided if use_self_attn is True"

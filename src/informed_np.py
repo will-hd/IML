@@ -89,6 +89,7 @@ class InformedNeuralProcess(nn.Module):
                     use_self_attn=use_latent_self_attn,
                     n_self_attn_heads=4,
                     set_agg_function='mean',
+                    activation=mlps_activation,
                     use_bias=use_bias)
 
             self.latent_encoder = FiLMLatentEncoder(
@@ -97,6 +98,7 @@ class InformedNeuralProcess(nn.Module):
                     knowledge_dim=knowledge_dim,
                     n_h_layers=n_h_layers_film_latent_encoder,
                     use_bias=use_bias,
+                    activation=mlps_activation,
                     FiLM_before_activation=True)
         
         if use_knowledge:

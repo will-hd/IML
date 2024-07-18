@@ -25,6 +25,7 @@ class FiLMLatentEncoder(nn.Module):
                  knowledge_dim: int,
                  n_h_layers: int,
                  use_bias: bool,
+                 activation: nn.Module,
                  FiLM_before_activation: bool,
                  ):
 
@@ -39,7 +40,7 @@ class FiLMLatentEncoder(nn.Module):
         self.FiLM_blocks = nn.ModuleList(
                 [LinearFiLMActBlock(
                                     hidden_dim, hidden_dim, 
-                                    use_bias, nn.GELU(), FiLM_before_activation
+                                    use_bias, activation, FiLM_before_activation
                                     ) for _ in range(n_h_layers)]
             )
         
