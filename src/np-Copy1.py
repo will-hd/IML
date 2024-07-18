@@ -7,6 +7,11 @@ from torch.distributions.kl import kl_divergence
 from .mlp import MLP
 from .models import LatentEncoder, DeterminisitcEncoder, Decoder, KnowledgeEncoder
 
+def sum_log_prob(dist, target):
+    # assert len(dist.batch_shape) == 3
+    
+    return dist.log_prob(target).sum(dim=(-1)) 
+
 class NeuralProcess(nn.Module):
 
     def __init__(self,
@@ -127,6 +132,7 @@ class NeuralProcess(nn.Module):
                                               y_target=y_target,
                                               posterior=z_post_dist,
                                               prior=z_prior_dist)
+            loss2 = self.get_loss(p_y_pred, z_prior_dist, z_post_dist, y_target)
             #loss = self._loss(p_y_pred, y_target, z_post_dist, z_prior_dist)
 
             return p_y_pred, loss, log_lik
@@ -138,6 +144,46 @@ class NeuralProcess(nn.Module):
 
             return p_y_pred
 
+    def get_loss(self, p_yCc, q_zCc, q_zCct, y_target):
+        """
+        Compute the ELBO loss during training and NLLL for validation and testing
+        """
+        beta = 1
+        # print(type(p_yCc))
+        # print(p_yCc.batch_shape, p_yCc.event_shape) 
+        # Batch shape [num_z_samples, batch_size, num_target_points]
+        # Event shape [y_dim (1)]
+        
+        # print(y_target.shape) # Shape [batch_size, num_target_points, y_dim]
+        # print(z_samples.shape) # Shape
+        if q_zCct is not None:
+            # 1st term: E_{q(z | T)}[p(y_t | z)]
+            # print(y_target.shape)
+            # print(p_yCc.event_shape, p_yCc.batch_shape)
+            E_z_sum_log_p_yCz = sum_log_prob(
+                p_yCc, y_target
+            )  # [batch_size]
+            # print(E_z_sum_log_p_yCz.shape)
+            # E_z_sum_log_p_yCz = torch.mean(sum_log_p_yCz, dim=0)  # [batch_size]
+            # 2nd term: KL[q(z | C, T) || q (z || C)]
+            kl_z = torch.distributions.kl.kl_divergence(
+                q_zCct, q_zCc
+            )  # [batch_size, *n_lat]
+            E_z_kl = torch.sum(kl_z, dim=1)  # [batch_size]
+            # print(E_z_kl.shape)
+            loss = -(E_z_sum_log_p_yCz - beta * E_z_kl)
+            negative_ll = -E_z_sum_log_p_yCz
+
+        else:
+            sum_log_p_yCz = sum_log_prob(p_yCc, y_target)
+            sum_log_w_k = sum_log_p_yCz
+            log_S_z_sum_p_y_Cz = torch.logsumexp(sum_log_w_k, 0)
+            log_E_z_sum_p_yCz = log_S_z_sum_p_y_Cz - math.log(sum_log_w_k.shape[0])
+            kl_z = None
+            negative_ll = -log_E_z_sum_p_yCz
+            loss = negative_ll
+
+        return loss.mean(), kl_z.mean(), negative_ll.mean()
     
     def calculate_loss(self,
                       pred_dist: Normal, 
@@ -190,3 +236,4 @@ class NeuralProcess(nn.Module):
 if __name__ == "__main__":
     pass
     
+
