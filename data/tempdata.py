@@ -33,7 +33,7 @@ class TempData:
         selected_y_values = self.y_values_train[selected_indices]  # Shape: [batch_size, num_points]
 
         # Split into context and target sets
-        context_indices = np.random.choice(num_total_points, num_context, replace=False)
+        context_indices = np.random.choice(num_total_points // 2, num_context, replace=False)
 
         x_context = self.x_values[:, context_indices].repeat(batch_size, 1)  # Shape: [batch_size, num_context]
         y_context = selected_y_values[:, context_indices]  # Shape: [batch_size, num_context]

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
+from torch.distributions.independent import Independent
 from torch.distributions.kl import kl_divergence
 
 from .mlp import MLP
@@ -127,9 +128,14 @@ class NeuralProcess(nn.Module):
                                               y_target=y_target,
                                               posterior=z_post_dist,
                                               prior=z_prior_dist)
+            loss2, _ = self.calculate_loss2(pred_dist=p_y_pred,
+                                              y_target=y_target,
+                                              posterior=z_post_dist,
+                                              prior=z_prior_dist)
+            loss3, kl_z, negative_ll = self.get_loss(p_y_pred, z_prior_dist, z_post_dist, y_target)
             #loss = self._loss(p_y_pred, y_target, z_post_dist, z_prior_dist)
 
-            return p_y_pred, loss, log_lik
+            return p_y_pred, loss, log_lik, loss3
 
         else: 
             z = z_prior_dist.rsample()
@@ -155,6 +161,70 @@ class NeuralProcess(nn.Module):
 
         loss = -torch.mean(log_lik - kl_div / num_targets)
         return loss, log_lik
+
+    def calculate_loss2(self,
+                      pred_dist: Normal, 
+                      y_target: torch.Tensor,
+                      posterior: Normal,
+                      prior: Normal
+                      ):
+
+        batch_size, num_targets, _ = y_target.shape
+        log_lik = pred_dist.log_prob(y_target).sum(dim=(-1, -2)) # Shape (batch_size)
+        # print(f'___ E_z {log_lik.mean().item()}')
+        # assert log_p.shape[-1] == 1
+        # log_p = log_p.squeeze(-1)
+
+        kl_div = torch.sum(kl_divergence(posterior, prior), dim=-1).sum(-1) # Shape (batch_size, 1)
+        loss = -(log_lik - kl_div)
+        loss = loss.mean()
+        # print(loss.item())
+        return loss, log_lik
+        
+    def get_loss(self, p_yCc, q_zCc, q_zCct, y_target):
+        """
+        Compute the ELBO loss during training and NLLL for validation and testing
+        """
+        beta = 1
+        p_yCc = Independent(p_yCc, 1)
+        q_zCc = Independent(q_zCc, 1)
+        q_zCct = Independent(q_zCct, 1)
+        def sum_log_prob(dist, target):    
+            return dist.log_prob(target).sum(dim=(-1)) 
+        # print(p_yCc.batch_shape, p_yCc.event_shape) 
+        # Batch shape [num_z_samples, batch_size, num_target_points]
+        # Event shape [y_dim (1)]
+
+        # print(q_zCc.batch_shape, q_zCc.event_shape) 
+        
+        # print(y_target.shape) # Shape [batch_size, num_target_points, y_dim]
+        # print(z_samples.shape) # Shape
+        if q_zCct is not None:
+            # 1st term: E_{q(z | T)}[p(y_t | z)]
+            sum_log_p_yCz = sum_log_prob(p_yCc, y_target)  # [num_z_samples, batch_size]
+            E_z_sum_log_p_yCz = torch.mean(sum_log_p_yCz, dim=0)  # [batch_size]
+            # print(f'Kas E_z {E_z_sum_log_p_yCz.mean().item()}')
+            # 2nd term: KL[q(z | C, T) || q (z || C)]
+            kl_z = torch.distributions.kl.kl_divergence(
+                q_zCct, q_zCc
+            )  # [batch_size, *n_lat]
+            E_z_kl = torch.sum(kl_z, dim=1)  # [batch_size]
+            loss = -(E_z_sum_log_p_yCz - beta * E_z_kl)
+            negative_ll = -E_z_sum_log_p_yCz
+
+        else:
+
+            sum_log_p_yCz = sum_log_prob(p_yCc, y_target)
+            sum_log_w_k = sum_log_p_yCz
+            log_S_z_sum_p_y_Cz = torch.logsumexp(sum_log_w_k, 0)
+            log_E_z_sum_p_yCz = log_S_z_sum_p_y_Cz - math.log(sum_log_w_k.shape[0])
+            kl_z = None
+            negative_ll = -log_E_z_sum_p_yCz
+            loss = negative_ll
+            # print(loss, negative_ll)
+        # print(f'kasia loss: {loss.mean().item()}')
+        return loss.mean(), kl_z, negative_ll
+    
     
     def _loss(self, p_y_pred, y_target, q_target, q_context):
             """
