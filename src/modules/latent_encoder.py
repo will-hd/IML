@@ -22,6 +22,7 @@ class FiLMLatentEncoder(nn.Module):
     def __init__(self, 
                  hidden_dim: int,
                  latent_dim: int, # i.e. z_dim
+                 use_knowledge: bool,
                  knowledge_dim: int,
                  n_h_layers: int,
                  use_bias: bool,
@@ -34,7 +35,8 @@ class FiLMLatentEncoder(nn.Module):
         self._n_h_layers = n_h_layers
         self.hidden_dim = hidden_dim
 
-        self.FiLM_params_generator = nn.Linear(knowledge_dim, 2*hidden_dim*n_h_layers)
+        if use_knowledge:
+            self.FiLM_params_generator = nn.Linear(knowledge_dim, 2*hidden_dim*n_h_layers)
         
         assert n_h_layers > 0, "n_h_layers must be greater than 0 (NotImplemented yet....)"
         self.FiLM_blocks = nn.ModuleList(
@@ -91,6 +93,53 @@ class FiLMLatentEncoder(nn.Module):
 #            latent_output = self.knowledge_aggregator(mean_repr, k) # Shape (batch_size, 2*latent_dim)
 #        else:
 #            latent_output = self.rho(mean_repr) # Shape (batch_size, 2*latent_dim)
+            
+        mean, pre_stddev = torch.chunk(latent_output, 2, dim=-1)
+        stddev = 0.1 + 0.9*F.sigmoid(pre_stddev) # Shape (batch_size, 1, latent_dim)
+
+        return MultivariateNormalDiag(mean, stddev) # q(z|x,y):  batch_shape (batch_size, 1), event_shape (latent_dim)
+
+class RhoLatentEncoder(nn.Module):
+
+    def __init__(self, 
+                 hidden_dim: int,
+                 latent_dim: int, # i.e. z_dim
+                 n_h_layers: int,
+                 use_bias: bool,
+                 activation: nn.Module,
+                 ):
+
+        super().__init__()
+
+        self._n_h_layers = n_h_layers
+        self.hidden_dim = hidden_dim
+
+        self.rho = MLP(input_dim=hidden_dim,
+                            output_dim=2*latent_dim,
+                            hidden_dim=hidden_dim,
+                            n_h_layers=n_h_layers,
+                            use_bias=use_bias,
+                            hidden_activation=activation)
+                
+
+    def forward(self,
+                r: torch.Tensor,
+                k: None
+                ) -> Independent:
+        """
+        Parameters
+        ----------
+        xy_encoding : torch.Tensor
+            Dataset encoding (DeepSets rho+phi output)
+            Shape (batch_size, 1, hidden_dim)
+
+        Returns
+        -------
+        q_Z : torch.distributions.normal.Normal
+            Distribution q(z|x,y)
+            Batch Shape (batch_size, 1), Event Shape (latent_dim)
+        """
+        latent_output = self.rho(r)
             
         mean, pre_stddev = torch.chunk(latent_output, 2, dim=-1)
         stddev = 0.1 + 0.9*F.sigmoid(pre_stddev) # Shape (batch_size, 1, latent_dim)

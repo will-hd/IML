@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .mlp import MLP
 from .attention import MultiheadAttender
+from .attention_modules import MultiheadAttention
 
 from typing import Literal
 
@@ -70,14 +71,18 @@ class XYSetEncoder(nn.Module):
 
         if use_self_attn:
             assert n_self_attn_heads is not None, "n_self_attn_heads must be provided if use_self_attn is True"
-            self.self_attender =  MultiheadAttender(
-                    kq_size=hidden_dim,
-                    value_size=hidden_dim,
-                    out_size=hidden_dim,
-                    is_post_process=True,
-                    n_heads=n_self_attn_heads,
-            )
+            self.self_attention_block = MultiheadAttention(input_dim=hidden_dim,
+                                               embed_dim=hidden_dim,
+                                               num_heads=8)
         
+            # self.self_attender =  MultiheadAttender(
+            #         kq_size=hidden_dim,
+            #         value_size=hidden_dim,
+            #         out_size=hidden_dim,
+            #         is_post_process=True,
+            #         n_heads=n_self_attn_heads,
+            # )
+
 #        if return_mean_repr and n_h_layers_rho > 0:
 #            logging.info('XYEncoder is 
 #            self.rho = MLP(input_dim=hidden_dim,
@@ -111,7 +116,8 @@ class XYSetEncoder(nn.Module):
             xy_encoded = self.phi(xy_input) # Shape (batch_size, num_points, hidden_dim)
             
             if self._use_self_attn:
-                xy_encoded = self.self_attender(xy_encoded, xy_encoded, xy_encoded) # Shape (batch_size, num_points, hidden_dim)
+                xy_encoded = self.self_attention_block(xy_encoded) # Shape (batch_size, num_points, hidden_dim)
+                # xy_encoded = self.self_attender(xy_encoded, xy_encoded, xy_encoded) # Shape (batch_size, num_points, hidden_dim)
 
             if self._set_agg_function == 'mean':
                 mean_repr = torch.mean(xy_encoded, dim=1, keepdim=True)

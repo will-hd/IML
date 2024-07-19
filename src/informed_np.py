@@ -7,7 +7,7 @@ import math
 
 from src.modules.mlp import MLP
 from src.modules.xy_encoders import XEncoder, XYSetEncoder
-from src.modules.latent_encoder import FiLMLatentEncoder
+from src.modules.latent_encoder import FiLMLatentEncoder, RhoLatentEncoder
 from src.modules.decoder import Decoder
 from src.modules.deterministic_encoder import DeterminisitcEncoder
 from src.modules.knowledge_encoder import RoBERTaKnowledgeEncoder
@@ -67,18 +67,25 @@ class InformedNeuralProcess(nn.Module):
         self._knowledge_dim = knowledge_dim
         self._knowledge_dropout = knowledge_dropout
 
-        self._train_num_z_samples = 1
-        self._test_num_z_samples = 32
+        self._train_num_z_samples = train_num_z_samples
+        self._test_num_z_samples = test_num_z_samples
 
         self.beta = beta
 
-        self.x_encoder = XEncoder(x_dim=x_dim,
+        self.x_context_encoder = XEncoder(x_dim=x_dim,
                                   x_proj_dim=x_proj_dim,
                                   hidden_dim=hidden_dim,
                                   n_h_layers=n_h_layers_x_proj,
                                   activation=mlps_activation,
                                   use_bias=use_bias
                                   )
+        self.x_target_encoder = XEncoder(x_dim=x_dim,
+                          x_proj_dim=128,
+                          hidden_dim=hidden_dim,
+                          n_h_layers=n_h_layers_x_proj,
+                          activation=mlps_activation,
+                          use_bias=use_bias
+                          )
 
         if path in ['latent', 'both']:
             self.xy_encoder_latent = XYSetEncoder(
@@ -91,15 +98,23 @@ class InformedNeuralProcess(nn.Module):
                     set_agg_function='mean',
                     activation=mlps_activation,
                     use_bias=use_bias)
-
+            # if use_knowledge:
             self.latent_encoder = FiLMLatentEncoder(
-                    hidden_dim=hidden_dim,
-                    latent_dim=latent_dim,
-                    knowledge_dim=knowledge_dim,
-                    n_h_layers=n_h_layers_film_latent_encoder,
-                    use_bias=use_bias,
-                    activation=mlps_activation,
-                    FiLM_before_activation=True)
+                hidden_dim=hidden_dim,
+                latent_dim=latent_dim,
+                use_knowledge=use_knowledge,
+                knowledge_dim=knowledge_dim,
+                n_h_layers=n_h_layers_film_latent_encoder,
+                use_bias=use_bias,
+                activation=mlps_activation,
+                FiLM_before_activation=True)
+            # else:
+            #     self.latent_encoder = RhoLatentEncoder(
+            #                             hidden_dim=hidden_dim,
+            #                             latent_dim=latent_dim,
+            #                             n_h_layers=n_h_layers_film_latent_encoder,
+            #                             use_bias=use_bias,
+            #                             activation=mlps_activation)
         
         if use_knowledge:
             self.knowledge_encoder = RoBERTaKnowledgeEncoder(
@@ -129,7 +144,7 @@ class InformedNeuralProcess(nn.Module):
             )
 
         self.decoder = Decoder(
-                    x_target_dim=x_proj_dim,
+                    x_target_dim=128,
                     y_dim=y_dim,
                     hidden_dim=hidden_dim,
                     latent_dim=latent_dim,
@@ -149,8 +164,8 @@ class InformedNeuralProcess(nn.Module):
                 y_target: None | torch.Tensor = None,
                 ) -> tuple[Independent, Independent, Independent | None]:
 
-        x_context = self.x_encoder(x_context)
-        x_target = self.x_encoder(x_target)
+        x_context = self.x_context_encoder(x_context)
+        x_target_proj = self.x_target_encoder(x_target)
 
         # Knowledge to vector
         if (torch.rand(1) < self._knowledge_dropout and
@@ -173,13 +188,13 @@ class InformedNeuralProcess(nn.Module):
 
             z_samples = q_z_target.rsample([self._train_num_z_samples])  # Shape (num_z_samples, batch_size, 1, latent_dim)
 
-            p_y_pred = self.decoder(x_target=x_target, z_samples=z_samples, r=None)  # batch_shape (num_z_samples, batch_size, num_target_points), event_shape (y_dim)
+            p_y_pred = self.decoder(x_target=x_target_proj, z_samples=z_samples, r=None)  # batch_shape (num_z_samples, batch_size, num_target_points), event_shape (y_dim)
             
             return p_y_pred, q_z_context, q_z_target
         else: 
             z_samples = q_z_context.rsample([self._test_num_z_samples])  # Shape (num_z_samples, batch_size, 1, latent_dim)
 
-            p_y_pred = self.decoder(x_target=x_target, z_samples=z_samples, r=None)
+            p_y_pred = self.decoder(x_target=x_target_proj, z_samples=z_samples, r=None)
 
             return p_y_pred, q_z_context, None
 
