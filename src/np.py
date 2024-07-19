@@ -189,10 +189,11 @@ class NeuralProcess(nn.Module):
         p_yCc = Independent(p_yCc, 1)
         q_zCc = Independent(q_zCc, 1)
         q_zCct = Independent(q_zCct, 1)
+
         def sum_log_prob(dist, target):    
-            return dist.log_prob(target).sum(dim=(-1)) 
+            return dist.log_prob(target).sum(dim=(-1, -2)) 
         # print(p_yCc.batch_shape, p_yCc.event_shape) 
-        # Batch shape [num_z_samples, batch_size, num_target_points]
+        # Batch shape [batch_size, num_target_points]
         # Event shape [y_dim (1)]
 
         # print(q_zCc.batch_shape, q_zCc.event_shape) 
@@ -201,8 +202,9 @@ class NeuralProcess(nn.Module):
         # print(z_samples.shape) # Shape
         if q_zCct is not None:
             # 1st term: E_{q(z | T)}[p(y_t | z)]
-            sum_log_p_yCz = sum_log_prob(p_yCc, y_target)  # [num_z_samples, batch_size]
-            E_z_sum_log_p_yCz = torch.mean(sum_log_p_yCz, dim=0)  # [batch_size]
+            sum_log_p_yCz = sum_log_prob(p_yCc, y_target)  # [batch_size]
+            E_z_sum_log_p_yCz = sum_log_p_yCz  # [batch_size]
+            # E_z_sum_log_p_yCz = torch.mean(sum_log_p_yCz, dim=0)  # [batch_size]
             # print(f'Kas E_z {E_z_sum_log_p_yCz.mean().item()}')
             # 2nd term: KL[q(z | C, T) || q (z || C)]
             kl_z = torch.distributions.kl.kl_divergence(
