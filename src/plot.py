@@ -45,3 +45,4 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
     if save:
         plt.savefig(f'./results/iter_{iter}.png')
     plt.show()
+    
