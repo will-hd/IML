@@ -49,7 +49,7 @@ class TempData:
 
         x_target = self.x_values.repeat(batch_size, 1)  # Shape: [batch_size, num_target]
         y_target = selected_y_values  # Shape: [batch_size, num_target]
-
+        
         if return_knowledge:
             
             return NPRegressionDescription(
@@ -57,9 +57,10 @@ class TempData:
                 y_context=y_context.unsqueeze(-1).to(device),  # Shape: [batch_size, num_context, y_size]
                 x_target=x_target.unsqueeze(-1).to(device),    # Shape: [batch_size, num_target, x_size]
                 y_target=y_target.unsqueeze(-1).to(device),    # Shape: [batch_size, num_target, y_size]
+                knowledge=list(knowledge), # Shape/type: TODO
                 num_total_points=num_total_points,
                 num_context_points=num_context
-            ), knowledge
+            )
 
         else:
             
@@ -68,6 +69,7 @@ class TempData:
                 y_context=y_context.unsqueeze(-1).to(device),  # Shape: [batch_size, num_context, y_size]
                 x_target=x_target.unsqueeze(-1).to(device),    # Shape: [batch_size, num_target, x_size]
                 y_target=y_target.unsqueeze(-1).to(device),    # Shape: [batch_size, num_target, y_size]
+                knowledge=None,
                 num_total_points=num_total_points,
                 num_context_points=num_context
             )

@@ -25,18 +25,18 @@ class RoBERTa(nn.Module):
         self.device =device
 
         if freeze_llm:
-            logger.info("Freezing LLM parameters")
+            logger.debug("Freezing LLM parameters")
             for name, param in self.llm.named_parameters():
                 param.requires_grad = False
 
         if tune_llm_layer_norms:
-            logger.info("Allowing LLM LayerNorm parameters to be trained")
+            logger.debug("Allowing LLM LayerNorm parameters to be trained")
             for name, param in self.llm.named_parameters():
                 if "LayerNorm" in name:
                     param.requires_grad = True
 
 
-        logging.info("Training pooler layer parameters")
+        logging.debug("Training pooler layer parameters")
         for name, param in self.llm.named_parameters():
             if name == "pooler.dense.weight" or name == "pooler.dense.bias":
                 param.requires_grad = True

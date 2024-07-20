@@ -7,6 +7,7 @@ class NPRegressionDescription(NamedTuple):
     y_context: torch.Tensor
     x_target: torch.Tensor
     y_target: torch.Tensor
+    knowledge: list[str] | tuple[str] | None
     num_total_points: int
     num_context_points: int
 
