@@ -25,11 +25,11 @@ def setup_logging(
         Whether to log debug messages, by default False
     """
 
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    timestamp = time.strftime("%d-%m-%Y-%H%M%S")
     #format_str = "[%(levelname)-8s]: %(message)s  ([%(asctime)s] %(filename)s:%(lineno)s)"
-    format_str = "[%(levelname)s]: %(message)s  ([%(asctime)s] %(filename)s:%(lineno)s)"
+    format_str = "[%(levelname)s]: %(message)s        (%(filename)s:%(lineno)s [%(asctime)s])"
     if console:
-        console_formatter = logging.Formatter(format_str, "%Y-%m-%d %H:%M:%S")
+        console_formatter = logging.Formatter(format_str, "%H:%M:%S")
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(console_formatter)
         console_handler.setLevel(logging.DEBUG)
@@ -37,7 +37,7 @@ def setup_logging(
         logging.root.addHandler(console_handler)
 
     if file:
-        file_formatter = logging.Formatter(format_str, "%Y-%m-%d %H:%M:%S")
+        file_formatter = logging.Formatter(format_str, "%d-%m-%Y %H:%M:%S")
         if file_basename is None:
             file_path =f"./logs/{timestamp}.log"
         else:
@@ -57,7 +57,10 @@ def setup_logging(
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
     logging.getLogger("PIL").setLevel(logging.WARNING)
 
-    logging.debug("Logging setup done ....")
+
+    # Print current date and time
+    logging.info(f"Logging setup completed at {timestamp}")
+
 
 
 def context_target_split(x, y, num_context, num_extra_target):
