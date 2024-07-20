@@ -160,8 +160,8 @@ class InformedNeuralProcess(nn.Module):
                 x_context: torch.Tensor,
                 y_context: torch.Tensor,
                 x_target: torch.Tensor,
-                textual_knowledge: tuple[str] | None = None,
                 y_target: None | torch.Tensor = None,
+                textual_knowledge: tuple[str] | None = None
                 ) -> tuple[Independent, Independent, Independent | None]:
 
         x_context = self.x_context_encoder(x_context)
