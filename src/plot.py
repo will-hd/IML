@@ -5,14 +5,14 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 
-def plot_predictive(model, batch, knowledge, save=False, iter=None):
+def plot_predictive(model, batch, save=False, iter=None):
     '''
     Plot predicted mean and variance given context and targets. 
     '''
 
     with torch.no_grad():
         # make device be the device of the model
-        p_y_pred, q_z_context, q_z_target = model(batch.x_context, batch.y_context, batch.x_target, knowledge, batch.y_target)
+        p_y_pred, q_z_context, q_z_target = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target, batch.knowledge)
         mu = p_y_pred.mean  # Shape [num_z_samples, batch_size, num_target_points, y_dim=1]
         sigma = p_y_pred.stddev
 

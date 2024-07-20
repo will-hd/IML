@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers import RobertaModel, RobertaTokenizer
-from attention import DotAttender, MultiheadAttender
+from .attention import DotAttender, MultiheadAttender
 
 class MLP(nn.Module):
     def __init__(

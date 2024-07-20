@@ -1,11 +1,11 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from modules import *
-from utils import MultivariateNormalDiag
+from .modules import *
+from .utils import MultivariateNormalDiag
 from torch.distributions import Bernoulli
 import numpy as np
-from attention import MultiheadAttender
+from .attention import MultiheadAttender
 
 class INP(nn.Module):
     def __init__(self, config):
@@ -49,7 +49,8 @@ class INP(nn.Module):
 
         p_yCc = self.decode_target(x_target, R_target)
 
-        return p_yCc, z_samples, q_z_Cc, q_zCct
+        # return p_yCc, z_samples, q_z_Cc, q_zCct
+        return p_yCc, q_z_Cc, q_zCct
     
 
     def get_mean_z_pred(self, x_context, y_context, x_target, y_target, knowledge=None):

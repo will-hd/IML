@@ -2,23 +2,22 @@ import torch
 import torch.nn as nn
 import math
 
-def sum_log_prob(dist, target):
-    assert len(dist.batch_shape) == 3
-    log_prob = dist.log_prob(target)
-    print(log_prob.shape)
-    log_prob = log_prob.sum(dim=(-1, -2))
-    print(log_prob.shape)
-    return log_prob
+# def sum_log_prob(dist, target):
+#     assert len(dist.batch_shape) == 3
+#     log_prob = dist.log_prob(target)
 
-# def sum_log_prob(prob, samples):
-#     """
-#     Compute the sum of log probability of samples under the given distribution
-#     """
-#     # size = [n_z_samples, batch_size, *]
-#     log_prob = prob.log_prob(samples)
-#     print(log_prob.shape)
-#     log_prob = torch.sum(log_prob, dim=2)
+#     log_prob = log_prob.sum(dim=(-1))
+
 #     return log_prob
+
+def sum_log_prob(prob, samples):
+    """
+    Compute the sum of log probability of samples under the given distribution
+    """
+    # size = [n_z_samples, batch_size, *]
+    log_prob = prob.log_prob(samples)
+    log_prob = torch.sum(log_prob, dim=2)
+    return log_prob
 
 class ELBOLoss(nn.Module):
     def __init__(self, reduction="mean", beta=1):
@@ -26,14 +25,17 @@ class ELBOLoss(nn.Module):
         self.reduction = reduction
         self.beta = beta
 
-    def forward(self, pred_outputs, y_target):
+    def forward(self,  p_y_pred, q_z_context, q_z_target, y_target):
         """
         Compute the ELBO loss
         """
-        p_yCc, z_samples, q_zCc, q_zCct = pred_outputs
+        # p_yCc, z_samples, q_zCc, q_zCct = pred_outputs
+        p_yCc = p_y_pred
+        q_zCc = q_z_context
+        q_zCct = q_z_target
 
         if self.training:
-            loss, kl, log_p = self.get_loss(p_yCc, z_samples, q_zCc, q_zCct, y_target)
+            loss, kl, log_p = self.get_loss(p_yCc, q_zCc, q_zCct, y_target)
 
         else:
             raise (NotImplementedError)
@@ -53,7 +55,7 @@ class ELBOLoss(nn.Module):
         else:
             raise (NotImplementedError)
 
-    def get_loss(self, p_yCc, z_samples, q_zCc, q_zCct, y_target):
+    def get_loss(self, p_yCc, q_zCc, q_zCct, y_target):
         """
         Compute the ELBO loss during training and NLLL for validation and testing
         """
@@ -87,6 +89,5 @@ class ELBOLoss(nn.Module):
             kl_z = None
             negative_ll = -log_E_z_sum_p_yCz
             loss = negative_ll
-            print(loss, negative_ll)
 
         return loss, kl_z, negative_ll

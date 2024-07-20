@@ -71,7 +71,6 @@ class RoBERTa(nn.Module):
         
         if self.return_cls:
             output = llm_output['pooler_output']
-            logging.debug(f"LLM output shape: {output.size()}")
         else:
             output = llm_output['last_hidden_state']
         return output

@@ -4,23 +4,22 @@ import math
 import logging
 logger = logging.getLogger(__name__)
 
-def sum_log_prob(dist, target):
-    assert len(dist.batch_shape) == 3
-    log_prob = dist.log_prob(target)
-    print(log_prob.shape)
-    log_prob = log_prob.sum(dim=(-1, -2))
-    print(log_prob.shape)
-    return log_prob
-
-# def sum_log_prob(prob, samples):
-#     """
-#     Compute the sum of log probability of samples under the given distribution
-#     """
-#     # size = [n_z_samples, batch_size, *]
-#     log_prob = prob.log_prob(samples)
+# def sum_log_prob(dist, target):
+#     assert len(dist.batch_shape) == 3
+#     log_prob = dist.log_prob(target)
 #     print(log_prob.shape)
-#     log_prob = torch.sum(log_prob, dim=2)
+#     log_prob = log_prob.sum(dim=(-1, -2))
+#     print(log_prob.shape)
 #     return log_prob
+
+def sum_log_prob(prob, samples):
+    """
+    Compute the sum of log probability of samples under the given distribution
+    """
+    # size = [n_z_samples, batch_size, *]
+    log_prob = prob.log_prob(samples)
+    log_prob = torch.sum(log_prob, dim=2)
+    return log_prob
 
 class ELBOLoss(nn.Module):
     def __init__(self, reduction="mean", beta=1):

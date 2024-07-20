@@ -12,9 +12,10 @@ class TempData:
     def __init__(self, data: pd.DataFrame, max_num_context: int, device):
         self.data = data
         self.max_num_context = max_num_context
-        x_values = data.iloc[0][3:].values.astype('float32')
-        # print(x_values)
-        self.x_values = torch.from_numpy(x_values).unsqueeze(0).to(device)  # Shape: [1, num_points]
+        x_values = data.iloc[0][3:].values.astype('float32') # (288,)
+        assert x_values.shape[0] == 288
+        # self.x_values = torch.from_numpy(x_values).unsqueeze(0).to(device)  # Shape: [1, num_points]
+        self.x_values = torch.linspace(-2, 2, len(x_values), device=device).unsqueeze(0)
         self.y_values_train = torch.tensor(data.iloc[1:508, 3:].values).float().to(device)  # Shape: [num_samples, num_points]
         self.y_values_val = torch.tensor(data.iloc[619:, 3:].values).float().to(device)  # Shape: [num_samples, num_points]
         self.y_desc_train = data.iloc[1:508, 2].values
