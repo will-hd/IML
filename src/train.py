@@ -4,6 +4,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from .plot import plot_predictive
+import logging
+logger = logging.getLogger(__name__)
 
 
 def train(model,
@@ -14,7 +16,8 @@ def train(model,
           use_knowledge: bool,
           max_iters: int = 10000,
           avg_loss_print_interval: int = 1000,
-          plot_sample_interval: int = 1000
+          plot_sample_interval: int = 1000,
+          model_save_name: None | str = None
          ) -> tuple[torch.nn.Module, torch.optim.Optimizer, list[float], list[float]]:
     """
     Parameters
@@ -48,7 +51,11 @@ def train(model,
         optimiser.zero_grad()
     
         batch = data.generate_batch(batch_size=64, device=device, return_knowledge=use_knowledge)
-        p_y_pred, q_z_context, q_z_target = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target, batch.knowledge)
+        p_y_pred, q_z_context, q_z_target = model(batch.x_context,
+                                                  batch.y_context,
+                                                  batch.x_target,
+                                                  batch.y_target,
+                                                  batch.knowledge)
     
         loss_dict = loss_function(p_y_pred, q_z_context, q_z_target, batch.y_target)
     
@@ -71,13 +78,28 @@ def train(model,
                 n_val_batches = 128
                 val_batch_size = 96
                 for _ in range(n_val_batches):
-                    batch = data.generate_batch(batch_size=val_batch_size, device=device, return_knowledge=use_knowledge, training=False)
+                    batch = data.generate_batch(batch_size=val_batch_size,
+                                                device=device,
+                                                return_knowledge=use_knowledge,
+                                                training=False)
                     model.training = False
-                    p_y_pred, q_z_context, q_z_target = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target, batch.knowledge)
+                    p_y_pred, q_z_context, q_z_target = model(batch.x_context,
+                                                              batch.y_context,
+                                                              batch.x_target,
+                                                              batch.y_target,
+                                                              batch.knowledge)
                     val_loss_dict = loss_function(p_y_pred, q_z_context, None, batch.y_target)
                     val_loss += val_loss_dict["loss"].item() / n_val_batches
                 val_losses.append(val_loss)
                 print(f"iter {iter}: Val. Loss: {val_loss}")
+                
+                if iter == 1:
+                    best_val_loss = val_loss
+                else:
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        torch.save(model.state_dict(), f"../exp/{str(model_save_name or '')}_iter{iter}.pt")
+                        logging.info(f"Saving new best val loss model at iter {iter}")
             model.training = True
             
         if iter % plot_sample_interval == 0 or iter == 1:
@@ -92,10 +114,11 @@ def train(model,
              color='#1f77b4', label=f'train_loss_{window}_smoothed')
     # plot val at intervals of avg_loss_print_interval
     plt.plot(range(0, len(val_losses)*avg_loss_print_interval, avg_loss_print_interval),
-             val_losses, label='val_loss', marker='o', markersize=7, c='#f0c39c', mec='k', mfc='#ff7f0e') # mec='#ff7f0e')
+             val_losses, label='val_loss', marker='o', markersize=5, c='#f0c39c', mec='k', mfc='#ff7f0e') # mec='#ff7f0e')
     plt.legend()
     plt.xlabel('Iteration')
     plt.ylabel('Loss')
+    plt.ylim(bottom=0, top=2000)
     plt.xlim(0, len(train_losses))
     plt.show()
 

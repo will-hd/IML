@@ -41,8 +41,21 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
                 facecolor=FILL_COLOURS[i],
                 interpolate=True)
     #plt.ylim(-4, 4)
+
     plt.xlim(-2, 2)
+    # print(list(x_target[0::36])+ [2.0])
+    
+    # Formatting the x-axis to display time in "HHMM" format
+    plt.xticks(list(x_target[0].flatten()[::36])+ [2.0], labels=["0000", "0300", "0600", "0900", "1200", "1500", "1800", "2100", "2400"])
+    
+    # Label axes
+    plt.xlabel('Time (HHMM)')
+    plt.ylabel('Temperature (°C)')
+    plt.ylabel('Temperature (°C)')
     if save:
         plt.savefig(f'./results/iter_{iter}.png')
     plt.show()
+
+
+# def plot_sample(x_context, y_context, x_target, y_target):
     

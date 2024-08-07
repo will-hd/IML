@@ -16,7 +16,7 @@ class RoBERTa(nn.Module):
                  tune_llm_layer_norms: bool,
                  freeze_llm: bool,
                  ):
-        super(RoBERTa, self).__init__()
+        super().__init__()
 
         self.dim_model = 768
         self.llm = RobertaModel.from_pretrained("roberta-base")
@@ -43,7 +43,7 @@ class RoBERTa(nn.Module):
 
 
         self.tokenizer = RobertaTokenizer.from_pretrained(
-                'roberta-base', truncation=True, do_lower_case=True
+                'roberta-base', truncation=True, max_length=None, do_lower_case=True
         )
 
         if return_cls:

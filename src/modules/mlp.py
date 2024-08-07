@@ -30,7 +30,7 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
-        self._initialize_weights()
+        # self._initialize_weights()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.mlp(x)
