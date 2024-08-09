@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 LINE_COLOURS = ['#1f77b4', '#ff7f0e', '#2ca02c',]
 FILL_COLOURS = ['#A6CEE3', '#f0c39c', '#b8deb8']
 
-def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
+def plot_predictive(model, batch, figsize=(5, 3), save=False, save_name=None):
     '''
     Plot predicted mean and variance given context and targets. 
     '''
@@ -16,7 +16,11 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
     assert batch_size <= 3, 'Batch size should be <= 3 for plot clarity'
     with torch.no_grad():
         # make device be the device of the model
-        p_y_pred, q_z_context, q_z_target = model(batch.x_context, batch.y_context, batch.x_target, batch.y_target, batch.knowledge)
+        p_y_pred, q_z_context, q_z_target = model(batch.x_context,
+                                                  batch.y_context,
+                                                  batch.x_target,
+                                                  batch.y_target,
+                                                  batch.knowledge)
         mu = p_y_pred.mean  # Shape [num_z_samples, batch_size, num_target_points, y_dim=1]
         sigma = p_y_pred.stddev
 
@@ -27,7 +31,7 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
     plt.figure(figsize=figsize)
     for i in range(batch_size):
         plt.plot(x_target[i].flatten(), y_target[i].flatten(), 'k:')  # Plot ground truth GP
-        plt.scatter(x_context[i].flatten(), y_context[i].flatten(), c='k')  # Plot context points
+        
     
         num_z_samples = mu.shape[0]
         z_sample_idx = np.random.choice(num_z_samples, size=3)
@@ -40,8 +44,9 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
                 alpha=0.3,
                 facecolor=FILL_COLOURS[i],
                 interpolate=True)
+        plt.scatter(x_context[i].flatten(), y_context[i].flatten(), c='k')  # Plot context points
     #plt.ylim(-4, 4)
-
+    
     plt.xlim(-2, 2)
     # print(list(x_target[0::36])+ [2.0])
     
@@ -53,7 +58,8 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, iter=None):
     plt.ylabel('Temperature (°C)')
     plt.ylabel('Temperature (°C)')
     if save:
-        plt.savefig(f'./results/iter_{iter}.png')
+        assert save_name
+        plt.savefig(f'{save_name}.png', dpi=300)
     plt.show()
 
 

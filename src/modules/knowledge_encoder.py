@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers import RobertaModel, RobertaTokenizer
+from transformers import AutoTokenizer, AutoModel
 
 from typing import Literal
 import logging
@@ -143,63 +145,68 @@ class RoBERTaKnowledgeEncoder(nn.Module):
         return k # Shape (batch_size, 1, knowledge_dim)
 
 
-class KnowledgeEncoder(nn.Module):
 
-    def __init__(self,
-                 knowledge_dim: int,
-                 hidden_dim: int,
-                 latent_dim: int,
-                 n_h_layers_phi: int,
-                 n_h_layers_rho: int,
-                 only_use_linear: bool,
-                 use_bias: bool
-                 ) -> None:
-        super().__init__()
 
-        self._only_use_linear = only_use_linear
 
-        if only_use_linear:
-            self.linear = nn.Linear(knowledge_dim, hidden_dim, bias=use_bias)
+
+
+# class KnowledgeEncoder(nn.Module):
+
+#     def __init__(self,
+#                  knowledge_dim: int,
+#                  hidden_dim: int,
+#                  latent_dim: int,
+#                  n_h_layers_phi: int,
+#                  n_h_layers_rho: int,
+#                  only_use_linear: bool,
+#                  use_bias: bool
+#                  ) -> None:
+#         super().__init__()
+
+#         self._only_use_linear = only_use_linear
+
+#         if only_use_linear:
+#             self.linear = nn.Linear(knowledge_dim, hidden_dim, bias=use_bias)
         
-        else: 
-            self.phi = MLP(input_dim=knowledge_dim,
-                                output_dim=hidden_dim,
-                                hidden_dim=hidden_dim,
-                                n_h_layers=n_h_layers_phi,
-                                use_bias=use_bias,
-                                hidden_activation=nn.GELU())
+#         else: 
+#             self.phi = MLP(input_dim=knowledge_dim,
+#                                 output_dim=hidden_dim,
+#                                 hidden_dim=hidden_dim,
+#                                 n_h_layers=n_h_layers_phi,
+#                                 use_bias=use_bias,
+#                                 hidden_activation=nn.GELU())
             
-            self.rho = MLP(input_dim=hidden_dim,
-                                output_dim=hidden_dim,
-                                hidden_dim=hidden_dim,
-                                n_h_layers=n_h_layers_rho,
-                                use_bias=use_bias,
-                                hidden_activation=nn.GELU())
+#             self.rho = MLP(input_dim=hidden_dim,
+#                                 output_dim=hidden_dim,
+#                                 hidden_dim=hidden_dim,
+#                                 n_h_layers=n_h_layers_rho,
+#                                 use_bias=use_bias,
+#                                 hidden_activation=nn.GELU())
         
-    def forward(self,
-                knowledge: torch.Tensor
-                ) -> torch.Tensor:
-        """
-        Parameters
-        ----------
-        knowledge : torch.Tensor
-            Shape (batch_size, num_knowledge_points, knowledge_dim)
+#     def forward(self,
+#                 knowledge: torch.Tensor
+#                 ) -> torch.Tensor:
+#         """
+#         Parameters
+#         ----------
+#         knowledge : torch.Tensor
+#             Shape (batch_size, num_knowledge_points, knowledge_dim)
         
-        Returns
-        -------
-        k : torch.Tensor
-            Shape (batch_size, 1, hidden_dim) 
-            The aggregated knowledge representation
-        """
-        if self._only_use_linear:
-            k = self.linear(knowledge) # Shape (batch_size, 1, hidden_dim)
-            assert k.size(1) == 1
+#         Returns
+#         -------
+#         k : torch.Tensor
+#             Shape (batch_size, 1, hidden_dim) 
+#             The aggregated knowledge representation
+#         """
+#         if self._only_use_linear:
+#             k = self.linear(knowledge) # Shape (batch_size, 1, hidden_dim)
+#             assert k.size(1) == 1
         
-        else:
-            knowledge_encoded = self.phi(knowledge) # Shape (batch_size, num_knowledge_points, hidden_dim)
+#         else:
+#             knowledge_encoded = self.phi(knowledge) # Shape (batch_size, num_knowledge_points, hidden_dim)
 
-            mean_repr = torch.mean(knowledge_encoded, dim=1, keepdim=True) # Shape (batch_size, 1, hidden_dim)
+#             mean_repr = torch.mean(knowledge_encoded, dim=1, keepdim=True) # Shape (batch_size, 1, hidden_dim)
 
-            k = self.rho(mean_repr) # Shape (batch_size, 1, hidden_dim)
+#             k = self.rho(mean_repr) # Shape (batch_size, 1, hidden_dim)
 
-        return k # Shape (batch_size, 1, hidden_dim)
+#         return k # Shape (batch_size, 1, hidden_dim)

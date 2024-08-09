@@ -44,7 +44,7 @@ class InformedNeuralProcess(nn.Module):
                  train_num_z_samples: int = 1,
                  test_num_z_samples: int = 32,
                  use_bias: bool = True,
-                 user_context_in_target: bool = True, # TODO investigate
+                 use_context_in_target: bool = True, # TODO investigate
                  use_latent_self_attn: bool = False,
                  use_determ_self_attn: bool = False,
                  use_determ_cross_attn: bool = False,
@@ -168,8 +168,7 @@ class InformedNeuralProcess(nn.Module):
         x_target_proj = self.x_target_encoder(x_target)
 
         # Knowledge to vector
-        if (torch.rand(1) < self._knowledge_dropout and
-                                        self.training) or textual_knowledge is None:
+        if (torch.rand(1) < self._knowledge_dropout and self.training) or (textual_knowledge is None) or (not self._use_knowledge):
             k = None
         else:
             k = self.knowledge_encoder(textual_knowledge) # Shape (batch_size, 1, knowledge_dim)

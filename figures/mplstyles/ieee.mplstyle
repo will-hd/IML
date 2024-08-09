@@ -1,0 +1,16 @@
+# From: https://github.com/garrettj403/SciencePlots/blob/master/scienceplots/styles/journals/ieee.mplstyle
+# Matplotlib style for IEEE plots
+# This style should work for most two-column journals
+
+# Set color cycle
+# Set line style as well for black and white graphs
+axes.prop_cycle : (cycler('color', ['k', 'r', 'b', 'g']) + cycler('ls', ['-', '--', ':', '-.']))
+
+# Set default figure size
+figure.figsize : 2, 1
+figure.dpi : 600
+
+# Font sizes
+font.size : 5
+#font.family : serif
+#font.serif : Times
