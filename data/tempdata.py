@@ -17,7 +17,7 @@ def scramble(word):
 # 725 datapoints
 # Define the CSVDataLoaderAdjusted class
 class TempData:
-    def __init__(self, data: pd.DataFrame, max_num_context: int, device):
+    def __init__(self, data: pd.DataFrame, max_num_context: int, device, random_state=42):
         self.data = data
         self.max_num_context = max_num_context
         x_values = data.iloc[0][3:].values.astype('float32') # (288,)
@@ -27,10 +27,10 @@ class TempData:
         y_values = data.iloc[1:, 3:].values
         y_desc = data.iloc[1:, 2].values
         y_values_train, y_values_temp, y_desc_train, y_desc_temp = train_test_split(
-            y_values, y_desc, test_size=0.3
+            y_values, y_desc, test_size=0.3, random_state=random_state
         )
         y_values_val, y_values_test, y_desc_val, y_desc_test = train_test_split(
-            y_values_temp, y_desc_temp, test_size=0.5
+            y_values_temp, y_desc_temp, test_size=0.5, random_state=random_state
         )
 
         self.y_values_train = torch.tensor(y_values_train).float().to(device)

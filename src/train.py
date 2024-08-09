@@ -8,6 +8,21 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 
+def plot_training_curves(train_losses, val_losses, max_iters, avg_loss_print_interval):
+    window = 50
+    plt.plot(range(1, max_iters+1), train_losses, label='train_loss', color='#A6CEE3')
+    plt.plot(range(1, len(train_losses)-window+1), [sum(train_losses[i:i+window])/window for i in range(len(train_losses)-window)],
+             color='#1f77b4', label=f'train_loss_{window}_smoothed')
+    # plot val at intervals of avg_loss_print_interval
+    plt.plot(range(0, len(val_losses)*avg_loss_print_interval, avg_loss_print_interval),
+             val_losses, label='val_loss', marker='o', markersize=5, c='#f0c39c', mec='k', mfc='#ff7f0e') # mec='#ff7f0e')
+    plt.legend()
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    plt.ylim(bottom=0, top=2000)
+    plt.xlim(0, len(train_losses))
+    plt.show()
+
 
 def train(model,
           data,
@@ -20,6 +35,7 @@ def train(model,
           plot_sample_interval: int = 1000,
           model_save_name: None | str = None,
           verbose = True,
+          max_time_since_prev_best_val = 10
          ) -> tuple[torch.nn.Module, torch.optim.Optimizer, list[float], list[float]]:
     """
     Parameters
@@ -104,8 +120,10 @@ def train(model,
                     best_model_path = f"../exp/{str(model_save_name or '')}_iter{iter}.pt"
                     torch.save(model.state_dict(), best_model_path)
                     logging.info(f"Saving new best val loss model at iter {iter}")
+                    time_since_prev_best_val = 0
                 else:
                     if val_loss < best_val_loss:
+                        time_since_prev_best_val = 0
                         best_val_loss = val_loss
                         if os.path.exists(best_model_path):
                             logging.info(f"Removing model at path '{best_model_path}'")
@@ -114,27 +132,24 @@ def train(model,
                         best_model_path = f"../exp/{str(model_save_name or '')}_iter{iter}.pt"
                         torch.save(model.state_dict(), best_model_path)
                         logging.info(f"Saving new best val loss model at iter {iter} to path {best_model_path}")
+                    else:
+                        time_since_prev_best_val += 1
+                        
             model.training = True
+            
             
         if (iter % plot_sample_interval == 0 or iter == 1) and verbose:
             model.training = False
             batch = data.generate_batch(batch_size=3, device=device, return_knowledge=use_knowledge, split='train')
             plot_predictive(model, batch, save=False)
             model.training = True
-    
-    window = 50
-    plt.plot(range(1, max_iters+1), train_losses, label='train_loss', color='#A6CEE3')
-    plt.plot(range(1, len(train_losses)-window+1), [sum(train_losses[i:i+window])/window for i in range(len(train_losses)-window)],
-             color='#1f77b4', label=f'train_loss_{window}_smoothed')
-    # plot val at intervals of avg_loss_print_interval
-    plt.plot(range(0, len(val_losses)*avg_loss_print_interval, avg_loss_print_interval),
-             val_losses, label='val_loss', marker='o', markersize=5, c='#f0c39c', mec='k', mfc='#ff7f0e') # mec='#ff7f0e')
-    plt.legend()
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss')
-    plt.ylim(bottom=0, top=2000)
-    plt.xlim(0, len(train_losses))
-    plt.show()
 
+        if time_since_prev_best_val >= max_time_since_prev_best_val:
+            logging.info("time_since_prev_best_val >=5. EXITING TRAINING")
+            plot_training_curves(train_losses, val_losses, iter, avg_loss_print_interval)
+            return model, best_model_path, optimiser, train_losses, val_losses
+    
+
+    plot_training_curves(train_losses, val_losses, iter, avg_loss_print_interval)
     return model, best_model_path, optimiser, train_losses, val_losses
     

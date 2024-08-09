@@ -1,0 +1,7 @@
+[INFO]: Logging setup completed at 09-08-2024-124717        (utils.py:62 [09-08-2024 12:47:17])
+[INFO]: Using DEVICE: cuda:0        (knowledge_sweep.py:66 [09-08-2024 12:47:19])
+[INFO]: USE_KNOWLEDGE: True        (knowledge_sweep.py:69 [09-08-2024 12:47:19])
+[WARNING]: Hidden activation set but no hidden layers        (mlp.py:22 [09-08-2024 12:47:20])
+[WARNING]: Hidden activation set but no hidden layers        (mlp.py:22 [09-08-2024 12:47:20])
+[DEBUG]: XYEncoder has x_dim=1 and y_dim=1        (xy_encoders.py:57 [09-08-2024 12:47:20])
+[INFO]: Saving new best val loss model at iter 1        (train.py:121 [09-08-2024 12:47:23])
