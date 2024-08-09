@@ -568,3 +568,4 @@ Bad key /cycler('ls', ['-', '--', ' in file ../figures/mplstyles/thesis.mplstyle
 You probably need to get an updated matplotlibrc file from
 https://github.com/matplotlib/matplotlib/blob/v3.9.0/lib/matplotlib/mpl-data/matplotlibrc
 or from the matplotlib source distribution        (__init__.py:918 [09-08-2024 19:06:06])
+[INFO]: Using DEVICE: cuda:0        (3197260226.py:2 [09-08-2024 19:12:15])
