@@ -1,0 +1,8 @@
+[INFO]: Logging setup completed at 10-08-2024-161107        (utils.py:62 [10-08-2024 16:11:07])
+[ERROR]: No such comm target registered: jupyter.widget.control        (manager.py:46 [10-08-2024 20:08:08])
+[WARNING]: No such comm: ff2e16b9-28ca-4d49-80e3-30e3820534fe        (base_comm.py:212 [10-08-2024 20:08:08])
+[DEBUG]: Current comms: []        (base_comm.py:215 [10-08-2024 20:08:08])
+[ERROR]: No such comm target registered: jupyter.widget.control        (manager.py:46 [10-08-2024 20:13:21])
+[WARNING]: No such comm: 1289c930-f5ec-43f5-bf27-04f530ad590e        (base_comm.py:212 [10-08-2024 20:13:21])
+[DEBUG]: Current comms: []        (base_comm.py:215 [10-08-2024 20:13:21])
+[INFO]: Logging setup completed at 10-08-2024-202122        (utils.py:62 [10-08-2024 20:21:22])

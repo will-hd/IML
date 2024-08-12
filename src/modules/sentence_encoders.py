@@ -20,16 +20,39 @@ from .mlp import MLP
 class SentenceEncoder(nn.Module):
 
     def __init__(self,
+                 llm_path: str,
                  device: Literal['cuda', 'cpu'],
                  pooling_mode: Literal['pooling_mode_cls_token', 'pooling_mode_mean_tokens', 'pooling_mode_max_tokens', 'pooling_mode_mean_sqrt_len_tokens'],
+                 final_dim: int,
+                 tune_llm_layer_norms: bool,
+                 freeze_llm: bool,
                 ) -> None:
         super().__init__()
-        self.tokenizer = AutoTokenizer.from_pretrained('sentence-transformers/LaBSE')
-        self.model = AutoModel.from_pretrained('sentence-transformers/LaBSE')
-        self.dim_model = 768
+        self.tokenizer = AutoTokenizer.from_pretrained(llm_path)
+        self.model = AutoModel.from_pretrained(llm_path)
+        self.dim_model = final_dim
         self.device = device
         self.pooling_mode = pooling_mode
-    
+
+        if freeze_llm:
+            logger.debug("Freezing LLM parameters")
+            for name, param in self.model.named_parameters():
+                param.requires_grad = False
+
+        if tune_llm_layer_norms:
+            logger.debug("Allowing LLM LayerNorm parameters to be trained")
+            for name, param in self.model.named_parameters():
+                if "LayerNorm" in name:
+                    param.requires_grad = True
+
+        logging.debug("Training pooler layer parameters")
+        for name, param in self.model.named_parameters():
+            if name == "pooler.dense.weight" or name == "pooler.dense.bias":
+                param.requires_grad = True
+
+        for name, param in self.model.named_parameters():
+            
+            print(name, param.requires_grad)
     #Mean Pooling - Take attention mask into account for correct averaging
     def mean_pooling(self, model_output, attention_mask):
         token_embeddings = model_output[0] #First element of model_output contains all token embeddings
@@ -40,11 +63,27 @@ class SentenceEncoder(nn.Module):
                sentences: list[str]
                ) -> torch.Tensor:
 
-        knowledge = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
-
-        input_ids = knowledge["input_ids"].to(self.device)
-        attention_mask = knowledge["attention_mask"].to(self.device)
-        token_type_ids = knowledge["token_type_ids"].to(self.device)
+        tokenized_input = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
+        print(tokenized_input.keys())
+        
+        input_ids = tokenized_input["input_ids"].to(self.device)
+        attention_mask = tokenized_input["attention_mask"].to(self.device)
+        
+        if "token_type_ids" in tokenized_input:
+            token_type_ids = tokenized_input["token_type_ids"].to(self.device)
+            with torch.no_grad():
+                model_output = self.model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        token_type_ids=token_type_ids,    
+                )
+        else:
+            with torch.no_grad():
+                model_output = self.model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        # token_type_ids=token_type_ids,    
+                )
 
         # print(input_ids.shape)
         # llm_output = self.llm(
@@ -53,12 +92,6 @@ class SentenceEncoder(nn.Module):
         #     token_type_ids=token_type_ids.squeeze(1),
         # )
         
-        with torch.no_grad():
-            model_output = self.model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    token_type_ids=token_type_ids,    
-            )
 
         if self.pooling_mode == 'pooling_mode_cls_token':
             output = model_output['pooler_output']
@@ -71,6 +104,9 @@ class SentenceEncoder(nn.Module):
 class SentenceKnowledgeEncoder(nn.Module):
 
     def __init__(self,
+                 llm_path: str,
+                 pooling_mode: Literal['pooling_mode_cls_token', 'pooling_mode_mean_tokens', 'pooling_mode_max_tokens', 'pooling_mode_mean_sqrt_len_tokens'],
+                 final_dim: int,
                  knowledge_dim: int,
                  freeze_llm: bool,
                  tune_llm_layer_norms: bool,
@@ -96,7 +132,12 @@ class SentenceKnowledgeEncoder(nn.Module):
         """
         super().__init__()
 
-        self.text_encoder = SentenceEncoder(device=device)
+        self.text_encoder = SentenceEncoder(device=device,
+                                           llm_path=llm_path,
+                                           pooling_mode=pooling_mode,
+                                           final_dim=final_dim,
+                                           freeze_llm=freeze_llm,
+                                           tune_llm_layer_norms=tune_llm_layer_norms)
                         
         self.projection = MLP(
             input_dim=self.text_encoder.dim_model,

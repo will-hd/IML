@@ -1,0 +1,4 @@
+ 10-08-2024 14:56:18:636 [pid=453552 tid=453552] NOTICE  cufio-drv:720 running in compatible mode
+ 10-08-2024 14:56:26:681 [pid=453552 tid=453552] ERROR  0:140 unable to load,  libnuma.so.1.0.0 
+
+ 10-08-2024 14:56:26:681 [pid=453552 tid=453552] ERROR  0:91 dlopen error libnuma.so.1.0.0: cannot open shared object file: No such file or directory
