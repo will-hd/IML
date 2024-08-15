@@ -7,6 +7,39 @@ from typing import NamedTuple, Literal
 import pandas as pd
 
 from .data_generator import DataGenerator, NPRegressionDescription
+from transformers import LlamaForCausalLM, LlamaTokenizer
+import torch
+
+
+
+
+class LlamaPerturber:
+    def __init__(self, model_path):
+        self.tokenizer = LlamaTokenizer.from_pretrained(model_path)
+        self.model = LlamaForCausalLM.from_pretrained(model_path, torch_dtype=torch.float16, device_map="auto")
+
+    def perturb_text(self, text, temperature):
+        prompt = f"""
+        Original text: {text}
+        
+        Rewrite the above text, maintaining its general meaning but with some variations:
+        """
+        
+        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.model.device)
+        
+        output = self.model.generate(
+            input_ids,
+            max_new_tokens=100,
+            do_sample=True,
+            temperature=temperature,
+            top_p=0.95,
+            num_return_sequences=1
+        )
+        
+        perturbed_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
+        return perturbed_text.split("Rewrite the above text")[1].strip()
+
+llama_perturber = LlamaPerturber("path_to_your_llama_model")
 
 # Define the CSVDataLoaderAdjusted class
 class TempData:
@@ -29,8 +62,8 @@ class TempData:
                        split: Literal['train', 'val', 'test'],
                        device: torch.device = torch.device('cpu'),
                        return_knowledge: bool = False,
-                       num_context: None | int = None
-                       ) -> NPRegressionDescription:
+                       num_context: None | int = None,
+                       perturbation_temperature=0.0) -> NPRegressionDescription:
         num_total_points = self.x_values.size(-1)
         if num_context is None:
             num_context = np.random.randint(low=3, high=self.max_num_context)
@@ -66,13 +99,17 @@ class TempData:
         y_target = selected_y_values  # Shape: [batch_size, num_target]
         
         if return_knowledge:
+            if perturbation_temperature > 0:
+                perturbed_knowledge = [llama_perturber.perturb_text(k, perturbation_temperature) for k in knowledge]
+            else:
+                perturbed_knowledge = knowledge
             
             return NPRegressionDescription(
                 x_context=x_context.unsqueeze(-1).to(device),  # Shape: [batch_size, num_context, x_size]
                 y_context=y_context.unsqueeze(-1).to(device),  # Shape: [batch_size, num_context, y_size]
                 x_target=x_target.unsqueeze(-1).to(device),    # Shape: [batch_size, num_target, x_size]
                 y_target=y_target.unsqueeze(-1).to(device),    # Shape: [batch_size, num_target, y_size]
-                knowledge=list(knowledge), # Shape/type: TODO
+                knowledge=perturbed_knowledge, # Shape/type: TODO
                 num_total_points=num_total_points,
                 num_context_points=num_context
             )

@@ -32,3 +32,6 @@
 [ERROR]: No such comm target registered: jupyter.widget.control        (manager.py:46 [12-08-2024 14:48:49])
 [WARNING]: No such comm: e3584bd8-be55-439e-9e1d-7c774eb58f4a        (base_comm.py:212 [12-08-2024 14:48:49])
 [DEBUG]: Current comms: []        (base_comm.py:215 [12-08-2024 14:48:49])
+[ERROR]: No such comm target registered: jupyter.widget.control        (manager.py:46 [12-08-2024 15:25:43])
+[WARNING]: No such comm: 8ad636ad-308e-4179-94ca-376159e459b0        (base_comm.py:212 [12-08-2024 15:25:43])
+[DEBUG]: Current comms: []        (base_comm.py:215 [12-08-2024 15:25:43])

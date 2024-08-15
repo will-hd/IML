@@ -1,0 +1,4 @@
+[INFO]: Logging setup completed at 14-08-2024-145315        (utils.py:62 [14-08-2024 14:53:15])
+[ERROR]: No such comm target registered: jupyter.widget.control        (manager.py:46 [14-08-2024 18:35:25])
+[WARNING]: No such comm: 8f86e189-c8f1-44fb-93e0-4ef2aed9d7af        (base_comm.py:212 [14-08-2024 18:35:25])
+[DEBUG]: Current comms: []        (base_comm.py:215 [14-08-2024 18:35:25])

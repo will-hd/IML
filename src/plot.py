@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 LINE_COLOURS = ['#1f77b4', '#ff7f0e', '#2ca02c',]
 FILL_COLOURS = ['#A6CEE3', '#f0c39c', '#b8deb8']
 
-def plot_predictive(model, batch, figsize=(5, 3), save=False, save_name=None):
+def plot_predictive(model, batch, figsize=(5, 3),  num_trajectories=3, ylabel="Temperature (°C)", save=False, save_name=None):
     '''
     Plot predicted mean and variance given context and targets. 
     '''
@@ -32,9 +32,9 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, save_name=None):
     for i in range(batch_size):
         plt.plot(x_target[i].flatten(), y_target[i].flatten(), 'k:')  # Plot ground truth GP
         
-    
         num_z_samples = mu.shape[0]
-        z_sample_idx = np.random.choice(num_z_samples, size=3)
+        assert num_trajectories < num_z_samples, "More than num_z_sample trajectories do not exist"
+        z_sample_idx = np.random.choice(num_z_samples, size=num_trajectories)
         for j in z_sample_idx:
             plt.plot(x_target[i].flatten(), mu[j, i].flatten(), color=LINE_COLOURS[i])
             plt.fill_between(
@@ -55,8 +55,8 @@ def plot_predictive(model, batch, figsize=(5, 3), save=False, save_name=None):
     
     # Label axes
     plt.xlabel('Time (HHMM)')
-    plt.ylabel('Temperature (°C)')
-    plt.ylabel('Temperature (°C)')
+    plt.ylabel(f'{ylabel}')
+
     if save:
         assert save_name
         plt.savefig(f'{save_name}.png', dpi=300)
